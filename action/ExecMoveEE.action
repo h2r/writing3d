@@ -1,0 +1,9 @@
+# Define the goal
+uint32 action
+---
+# Define the result
+uint32 status
+---
+# Define a feedback message
+uint32 status
+geometry_msgs/Pose pose

@@ -16,64 +16,66 @@ import geometry_msgs.msg
 import actionlib
 import util
 
-class Planner:
+from writing3d.msg import PlanMoveEEAction, PlanMoveEEGoal, PlanMoveEEResult, PlanMoveEEFeedback, \
+    ExecMoveEEAction, ExecMoveEEGoal, ExecMoveEEResult, ExecMoveEEFeedback
+    
 
-    def __init__(self, group_name, visualize_plan=True):
+class MoveitPlanner:
+
+    """SimpleActionServer that takes care of planning."""
+
+    def __init__(self, group_names, visualize_plan=True, robot_name="movo"):
 
         # Initializing node
         util.info("Initializing moveit commander...")
         moveit_commander.roscpp_initialize(sys.argv)
-        rospy.init_node("moveit_%s_planner" % group_name,
+        rospy.init_node("moveit_%s_planner" % robot_name,
                         anonymous=True)
 
-        # interface to the robot
+        # interface to the robot, world, and joint group
         self._robot = moveit_commander.RobotCommander()
-
-        # interface to the world
         self._scene = moveit_commander.PlanningSceneInterface()
-
-        # interface to the joint group
-        self._joint_group = moveit_commander.MoveGroupCommander(group_name)
+        self._joint_groups = {n:moveit_commander.MoveGroupCommander(n)
+                              for n in group_names}
 
         # starts an action server
+        util.info("Starting moveit_planner_server...")
+        self._plan_server = actionlib.SimpleActionServer("moveit_%s_plan" % robot_name,
+                                                         PlanMoveEEAction, self.plan, auto_start=False)
+        self._exec_server = actionlib.SimpleActionServer("moveit_%s_exec" % robot_name,
+                                                         ExecMoveEEAction, self.execute, auto_start=False)
+        self._plan_server.start()
+        self._exec_server.start()
+
+        self._current_plan = None
+        self._current_goal = None
 
         if visualize_plan:
             self._display_trajectory_publisher = rospy.Publisher(
                 '/move_group/display_planned_path',
                 moveit_msgs.msg.DisplayTrajectory)
-            
-            util.warning("Waiting 10 seconds for Rviz...")
-            rospy.sleep(10)
-                
-        self._print_info()
-        self.plan()
 
+    
+    def plan(self, goal):
+        self._current_goal = goal
+        group_name = goal.group_name
+        pose_target = goal.pose
+        util.info("Generating plan for goal [%s to %s]" % (group_name, pose_target))
 
-    def _print_info(self):
-        print("============ Reference frame: %s" % self._joint_group.get_end_effector_link())
-        print("============ Robot Groups:")
-        print(self._robot.get_group_names())
-        print("============ Printing robot state")
-        print(self._robot.get_current_state())
-        print("============")
+        result = PlanMoveEEResult()
+        self._joint_groups[group_name].set_pose_target(pose_target)
+        self._current_plan = self._joint_groups[group_name].plan()
+        util.success("A plan has been made. See it in RViz [check Show Trail]")
+        result.status = 0
+        self._plan_server.set_succeeded(result)
 
-    def plan(self):
-        print "============ Generating plan 1"
-        pose_target = geometry_msgs.msg.Pose()
-        pose_target.orientation.w = 1.0
-        pose_target.position.x = 0.7
-        pose_target.position.y = -0.05
-        pose_target.position.z = 1.1
-        self._joint_group.set_pose_target(pose_target)
-
-        plan1 = self._joint_group.plan()
-        print "============ Waiting while RVIZ displays plan1..."
-        rospy.sleep(5)
+    def execute(self, goal):
+        pass
+        
         
         
 
 
 if __name__ == "__main__":
-    Planner("right_arm")
-
+    MoveitPlanner(["right_arm"])
     rospy.spin()

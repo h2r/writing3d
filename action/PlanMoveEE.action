@@ -1,9 +1,10 @@
 # Define the goal
-Pose pose
+geometry_msgs/Pose pose
+string group_name
 ---
 # Define the result
 uint32 status
 ---
 # Define a feedback message
 uint32 status
-Pose pose
+geometry_msgs/Pose pose
