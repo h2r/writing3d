@@ -1,0 +1,9 @@
+# Define the goal
+Pose pose
+---
+# Define the result
+uint32 status
+---
+# Define a feedback message
+uint32 status
+Pose pose

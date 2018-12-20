@@ -1,0 +1,6 @@
+<?xml version="1.0" ?>
+<launch>
+
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find writing3d)/rviz/moveit_movo.rviz" />
+
+</launch>
