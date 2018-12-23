@@ -11,6 +11,9 @@ import util
 
 from writing3d.msg import PlanMoveEEAction, PlanMoveEEGoal, PlanMoveEEResult, PlanMoveEEFeedback, \
     ExecMoveEEAction, ExecMoveEEGoal, ExecMoveEEResult, ExecMoveEEFeedback
+from writing3d.common import ActionType
+
+import argparse
 
 
 class MoveitClient:
@@ -54,8 +57,47 @@ class MoveitClient:
         self._plan_client.send_goal(goal)
         self._plan_client.wait_for_result(rospy.Duration.from_sec(5.0))
 
+    def execute_plan(self, group_name, wait=True):
+        util.info("Executing plan for %s" % group_name)
+        goal = ExecMoveEEGoal()
+        goal.wait = wait
+        goal.action = ActionType.EXECUTE
+        goal.group_name = group_name
+        self._exec_client.send_goal(goal)
+        self._exec_client.wait_for_result(rospy.Duration.from_sec(5.0))
+
+    def cancel_plan(self, group_name, wait=True):
+        util.warning("Canceling plan for %s" % group_name)
+        goal = ExecMoveEEGoal()
+        goal.wait = wait
+        goal.action = ActionType.CANCEL
+        goal.group_name = group_name
+        self._exec_client.send_goal(goal)
+        self._exec_client.wait_for_result(rospy.Duration.from_sec(5.0))
+
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Movo Moveit Client. Priority (-g > -e > -k)')
+    parser.add_argument('group_name', type=str, help="Group name that the client wants to talk to")
+    parser.add_argument('-g', '--goal', type=float, nargs='+',
+                        help='Plans goal, specified as a list of floats x y z w.')
+    parser.add_argument('-e', '--exe', help='Execute the plan.', action="store_true")
+    parser.add_argument('-k', '--cancel', help='Cancel the plan.', action="store_true")
+    args = parser.parse_args()
+
     client = MoveitClient()
-    client.send_goal("right_arm", (0.7, -0.05, 1.1, 1.0))
+
+    if args.goal:
+        goal = tuple(args.goal)
+        if len(goal) != 4:
+            raise ValueError("The goal needs to be a list of four floats x y z w.")
+        client.send_goal(args.group_name, goal)
     
+    elif args.exe:
+        client.execute_plan(args.group_name)
+
+    elif args.cancel:
+        client.cancel_plan(args.group_name)
+
+    # Example run:
+    # ./moveit_client right_arm -g 0.7 -0.05 1.1 1.0

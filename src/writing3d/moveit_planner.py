@@ -13,16 +13,26 @@ import rospy
 import moveit_commander
 import moveit_msgs.msg
 import geometry_msgs.msg
+import shape_msgs.msg
 import actionlib
 import util
 
 from writing3d.msg import PlanMoveEEAction, PlanMoveEEGoal, PlanMoveEEResult, PlanMoveEEFeedback, \
     ExecMoveEEAction, ExecMoveEEGoal, ExecMoveEEResult, ExecMoveEEFeedback
+
+from writing3d.common import ActionType
+
+import argparse
     
 
 class MoveitPlanner:
 
     """SimpleActionServer that takes care of planning."""
+
+    # Unimplemented: it is possible to use MoveIt to specify a list of waypoints for the end effector
+    #                to go through. This way you can visualize the entire plan and see if there is any
+    #                weird motion. The usefulness of this depends on whether the writing plan is decided
+    #                altogether before actually writing.
 
     def __init__(self, group_names, visualize_plan=True, robot_name="movo"):
 
@@ -37,6 +47,8 @@ class MoveitPlanner:
         self._scene = moveit_commander.PlanningSceneInterface()
         self._joint_groups = {n:moveit_commander.MoveGroupCommander(n)
                               for n in group_names}
+        for n in self._joint_groups:
+            self._joint_groups[n].set_planner_id("RRTConnectkConfigDefault")
 
         # starts an action server
         util.info("Starting moveit_planner_server...")
@@ -55,6 +67,10 @@ class MoveitPlanner:
                 '/move_group/display_planned_path',
                 moveit_msgs.msg.DisplayTrajectory)
 
+
+    def __del__(self):
+        moveit_commander.roscpp_shutdown()
+
     
     def plan(self, goal):
         self._current_goal = goal
@@ -65,17 +81,46 @@ class MoveitPlanner:
         result = PlanMoveEEResult()
         self._joint_groups[group_name].set_pose_target(pose_target)
         self._current_plan = self._joint_groups[group_name].plan()
-        util.success("A plan has been made. See it in RViz [check Show Trail]")
-        result.status = 0
+        if len(self._current_plan.joint_trajectory.points) > 0:
+            util.success("A plan has been made. See it in RViz [check Show Trail and Show Collisions]")
+            result.status = 0
+        else:
+            result.status = 1
         self._plan_server.set_succeeded(result)
 
     def execute(self, goal):
-        pass
+        group_name = goal.group_name
+        util.info("Received executive action from client [type = %d]" % goal.action)
+
+        result = ExecMoveEEResult()
+        if goal.action == ActionType.EXECUTE:
+            success = self._joint_groups[group_name].go(wait=goal.wait)
+            if success:
+                util.success("Plan for %s will execute." % group_name)
+            else:
+                util.error("Plan for %s will NOT execute. Is there a collision?" % group_name)
+            result.status = 0
+                
+        elif goal.action == ActionType.CANCEL:
+            self._joint_groups[group_name].clear_pose_targets()
+            util.success("Plan for %s has been canceled" % group_name)
+            self._current_plan = None
+            self._current_goal = None
+            result.status = 0
+
+        else:
+            result.status = 1
+            self._plan_server.set_succeeded(result)
+            raise ValueError("Unrecognized action type %d" % goal.action)
         
-        
+        self._plan_server.set_succeeded(result)
         
 
 
 if __name__ == "__main__":
-    MoveitPlanner(["right_arm"])
+    parser = argparse.ArgumentParser(description='Movo Moveit Client. Priority (-g > -e > -k)')
+    parser.add_argument('group_names', type=str, nargs="+", help="Group name(s) that the client wants to talk to")
+    args = parser.parse_args()
+    
+    MoveitPlanner(args.group_names)
     rospy.spin()
