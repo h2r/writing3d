@@ -47,6 +47,8 @@ class MoveitPlanner:
         self._scene = moveit_commander.PlanningSceneInterface()
         self._joint_groups = {n:moveit_commander.MoveGroupCommander(n)
                               for n in group_names}
+
+        # Set the planner to be used. Reference: https://github.com/ros-planning/moveit/issues/236
         for n in self._joint_groups:
             self._joint_groups[n].set_planner_id("RRTConnectkConfigDefault")
 
