@@ -110,10 +110,10 @@ class MoveitPlanner:
 
         else:
             result.status = 1
-            self._plan_server.set_succeeded(result)
+            self._exec_server.set_succeeded(result)
             raise ValueError("Unrecognized action type %d" % goal.action)
         
-        self._plan_server.set_succeeded(result)
+        self._exec_server.set_succeeded(result)
         
 
 
