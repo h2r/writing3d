@@ -3,8 +3,6 @@ string group_name
 uint32 action
 bool wait
 ---
-# Define the result
-uint32 status
 ---
 # Define a feedback message
 uint32 status

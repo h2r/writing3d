@@ -92,15 +92,15 @@ class MoveitPlanner:
         pose_target = goal.pose
         util.info("Generating plan for goal [%s to %s]" % (group_name, pose_target))
 
-        result = PlanMoveEEResult()
         self._joint_groups[group_name].set_pose_target(pose_target)
         self._current_plan = self._joint_groups[group_name].plan()
         if len(self._current_plan.joint_trajectory.points) > 0:
             util.success("A plan has been made. See it in RViz [check Show Trail and Show Collisions]")
-            result.status = 0
+            self._plan_server.set_succeeded()
         else:
-            result.status = 1
-        self._plan_server.set_succeeded(result)
+            util.error("No plan found.")
+            self._plan_server.set_aborted()
+            
 
     def plan_joint_space(self, goal):
         if self._current_goal is not None:
@@ -110,47 +110,41 @@ class MoveitPlanner:
         group_name = goal.group_name
         util.info("Generating joint space plan [%s to %s]" % (group_name, goal.joint_values))
         
-        result = PlanMoveEEResult()
         self._joint_groups[group_name].set_joint_value_target(goal.joint_values)
         self._current_plan = self._joint_groups[group_name].plan()
         if len(self._current_plan.joint_trajectory.points) > 0:
             util.success("A plan has been made. See it in RViz [check Show Trail and Show Collisions]")
-            result.status = 0
+            self._js_plan_server.set_succeeded()
         else:
-            result.status = 1
-        self._plan_server.set_succeeded(result)
+            util.error("No plan found.")
+            self._js_plan_server.set_aborted()
 
     def execute(self, goal):
         group_name = goal.group_name
         util.info("Received executive action from client [type = %d]" % goal.action)
 
-        result = ExecMoveitPlanResult()
         if goal.action == ActionType.EXECUTE:
             success = self._joint_groups[group_name].go(wait=goal.wait)
             if success:
                 util.success("Plan for %s will execute." % group_name)
             else:
                 util.error("Plan for %s will NOT execute. Is there a collision?" % group_name)
-            result.status = 0
+            self._exec_server.set_succeeded()
                 
         elif goal.action == ActionType.CANCEL:
             self._joint_groups[group_name].clear_pose_targets()
             util.success("Plan for %s has been canceled" % group_name)
             self._current_plan = None
             self._current_goal = None
-            result.status = 0
-
+            self._exec_server.set_succeeded()
+            
         else:
-            result.status = 1
-            self._exec_server.set_succeeded(result)
-            raise ValueError("Unrecognized action type %d" % goal.action)
-        
-        self._exec_server.set_succeeded(result)
-        
-
+            util.error("Unrecognized action type %d" % goal.action)
+            self._exec_server.set_aborted()
+            
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Movo Moveit Client. Priority (-g > -e > -k)')
+    parser = argparse.ArgumentParser(description='Movo Moveit Planner.')
     parser.add_argument('group_names', type=str, nargs="+", help="Group name(s) that the client wants to talk to")
     args = parser.parse_args()
     
