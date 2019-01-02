@@ -17,7 +17,7 @@ catkin_python_setup()
 
 add_action_files(
   DIRECTORY action
-  FILES PlanMoveEE.action ExecMoveEE.action
+  FILES PlanMoveEE.action ExecMoveitPlan.action PlanJointSpace.action
   )
 
 generate_messages(

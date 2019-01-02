@@ -18,7 +18,8 @@ import actionlib
 import util
 
 from writing3d.msg import PlanMoveEEAction, PlanMoveEEGoal, PlanMoveEEResult, PlanMoveEEFeedback, \
-    ExecMoveEEAction, ExecMoveEEGoal, ExecMoveEEResult, ExecMoveEEFeedback
+    ExecMoveitPlanAction, ExecMoveitPlanGoal, ExecMoveitPlanResult, ExecMoveitPlanFeedback, \
+    PlanJointSpaceAction, PlanJointSpaceGoal, PlanJointSpaceResult, PlanJointSpaceFeedback
 
 from writing3d.common import ActionType
 
@@ -56,13 +57,21 @@ class MoveitPlanner:
         util.info("Starting moveit_planner_server...")
         self._plan_server = actionlib.SimpleActionServer("moveit_%s_plan" % robot_name,
                                                          PlanMoveEEAction, self.plan, auto_start=False)
+        self._js_plan_server = actionlib.SimpleActionServer("moveit_%s_joint_space_plan" % robot_name,
+                                                            PlanJointSpaceAction, self.plan_joint_space, auto_start=False)
         self._exec_server = actionlib.SimpleActionServer("moveit_%s_exec" % robot_name,
-                                                         ExecMoveEEAction, self.execute, auto_start=False)
+                                                         ExecMoveitPlanAction, self.execute, auto_start=False)
         self._plan_server.start()
+        self._js_plan_server.start()
         self._exec_server.start()
 
         self._current_plan = None
         self._current_goal = None
+
+        # Print current joint positions
+        for n in self._joint_groups:
+            util.info("Joint values for %s" % n)
+            util.info("    " + str(self._joint_groups[n].get_current_joint_values()))
 
         if visualize_plan:
             self._display_trajectory_publisher = rospy.Publisher(
@@ -75,6 +84,9 @@ class MoveitPlanner:
 
     
     def plan(self, goal):
+        if self._current_goal is not None:
+            rospy.logwarn("Previous goal exists. Clear it first.")
+            return
         self._current_goal = goal
         group_name = goal.group_name
         pose_target = goal.pose
@@ -90,11 +102,29 @@ class MoveitPlanner:
             result.status = 1
         self._plan_server.set_succeeded(result)
 
+    def plan_joint_space(self, goal):
+        if self._current_goal is not None:
+            rospy.logwarn("Previous goal exists. Clear it first.")
+            return
+        self._current_goal = goal
+        group_name = goal.group_name
+        util.info("Generating joint space plan [%s to %s]" % (group_name, goal.joint_values))
+        
+        result = PlanMoveEEResult()
+        self._joint_groups[group_name].set_joint_value_target(goal.joint_values)
+        self._current_plan = self._joint_groups[group_name].plan()
+        if len(self._current_plan.joint_trajectory.points) > 0:
+            util.success("A plan has been made. See it in RViz [check Show Trail and Show Collisions]")
+            result.status = 0
+        else:
+            result.status = 1
+        self._plan_server.set_succeeded(result)
+
     def execute(self, goal):
         group_name = goal.group_name
         util.info("Received executive action from client [type = %d]" % goal.action)
 
-        result = ExecMoveEEResult()
+        result = ExecMoveitPlanResult()
         if goal.action == ActionType.EXECUTE:
             success = self._joint_groups[group_name].go(wait=goal.wait)
             if success:

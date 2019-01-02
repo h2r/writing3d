@@ -7,18 +7,20 @@ import rospy
 from std_msgs.msg import Header
 from movo_msgs.msg import JacoAngularVelocityCmd7DOF, JacoCartesianVelocityCmd
 
+import argparse
+
 SEQ = 1000
 
-def pose_publisher(msg):
+def pose_publisher(msg, arm="right", rate=1):
     if isinstance(msg, JacoCartesianVelocityCmd):
-        pub = rospy.Publisher("movo/right_arm/cartesian_vel_cmd", JacoCartesianVelocityCmd, queue_size=10)
+        pub = rospy.Publisher("movo/%s_arm/cartesian_vel_cmd" % arm, JacoCartesianVelocityCmd, queue_size=10)
     else:
-        pub = rospy.Publisher("movo/right_arm/angular_vel_cmd", JacoAngularVelocityCmd7DOF, queue_size=10)
-    rate = rospy.Rate(1)
+        pub = rospy.Publisher("movo/%s_arm/angular_vel_cmd" % arm, JacoAngularVelocityCmd7DOF, queue_size=10)
+    r = rospy.Rate(rate)
     while not rospy.is_shutdown():
         rospy.loginfo("Publishing %s" % msg)
         pub.publish(msg)
-        rate.sleep()
+        r.sleep()
 
 def angular_vel(indices=[], new_vals=[]):
     global SEQ
@@ -67,11 +69,26 @@ def cartesian_vel(indices=[], new_vals=[]):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Publish velocity commands to MOVO arm joints.')
+    parser.add_argument("side", type=str, help="Which arm to move. 'left' or 'right'")
+    parser.add_argument('-i', '--indices', type=int, nargs='+',
+                        help='Indices of joints, or indices of coordinates (if using cartesian).')
+    parser.add_argument('-v', '--vals', type=float, nargs='+',
+                        help='Values to set for the corresponding indices.')
+    parser.add_argument('-c', '--cartesian', help='Cartesian velocity commands', action="store_true")
+    parser.add_argument('-r', '--rate', type=float, help="Rate for publishing velocity command", default=1.0)
+    args = parser.parse_args()
+
     rospy.init_node("movo_pose_node", anonymous=True)
 
+    if args.side.lower() != "left" and args.side.lower() != "right":
+        raise ValueError("side must be either left or right!")
+
     try:
-        #msg = angular_vel([6], [2.0])
-        msg = cartesian_vel([0,1], [-0.1, 0.2])
-        pose_publisher(msg)
+        if args.cartesian:
+            msg = cartesian_vel(args.indices, args.vals)
+        else:
+            msg = angular_vel(args.indices, args.vals)
+        pose_publisher(msg, args.side.lower(), rate=args.rate)
     except rospy.ROSInterruptException:
         pass
