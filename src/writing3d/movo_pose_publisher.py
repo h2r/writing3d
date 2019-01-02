@@ -84,11 +84,14 @@ if __name__ == "__main__":
     if args.side.lower() != "left" and args.side.lower() != "right":
         raise ValueError("side must be either left or right!")
 
+    indices = args.indices if args.indices is not None else []
+    vals = args.vals if args.vals is not None else []
+
     try:
         if args.cartesian:
-            msg = cartesian_vel(args.indices, args.vals)
+            msg = cartesian_vel(indices, vals)
         else:
-            msg = angular_vel(args.indices, args.vals)
+            msg = angular_vel(indices, vals)
         pose_publisher(msg, args.side.lower(), rate=args.rate)
     except rospy.ROSInterruptException:
         pass
