@@ -16,10 +16,13 @@ import geometry_msgs.msg
 import shape_msgs.msg
 import actionlib
 import util
+import copy
 
 from writing3d.msg import PlanMoveEEAction, PlanMoveEEGoal, PlanMoveEEResult, PlanMoveEEFeedback, \
     ExecMoveitPlanAction, ExecMoveitPlanGoal, ExecMoveitPlanResult, ExecMoveitPlanFeedback, \
-    PlanJointSpaceAction, PlanJointSpaceGoal, PlanJointSpaceResult, PlanJointSpaceFeedback
+    PlanJointSpaceAction, PlanJointSpaceGoal, PlanJointSpaceResult, PlanJointSpaceFeedback,\
+    PlanWaypointsAction, PlanWaypointsGoal, PlanWaypointsResult, PlanWaypointsFeedback, \
+    GetStateAction, GetStateGoal, GetStateResult, GetStateFeedback
 
 from writing3d.common import ActionType
 
@@ -30,10 +33,9 @@ class MoveitPlanner:
 
     """SimpleActionServer that takes care of planning."""
 
-    # Unimplemented: it is possible to use MoveIt to specify a list of waypoints for the end effector
-    #                to go through. This way you can visualize the entire plan and see if there is any
-    #                weird motion. The usefulness of this depends on whether the writing plan is decided
-    #                altogether before actually writing.
+    class Status:
+        ABORTED = 0
+        SUCCESS = 1
 
     def __init__(self, group_names, visualize_plan=True, robot_name="movo"):
 
@@ -51,7 +53,7 @@ class MoveitPlanner:
 
         # Set the planner to be used. Reference: https://github.com/ros-planning/moveit/issues/236
         for n in self._joint_groups:
-            self._joint_groups[n].set_planner_id("RRTConnectkConfigDefault")
+            self._joint_groups[n].set_planner_id("RRTstarkConfigDefault")
 
         # starts an action server
         util.info("Starting moveit_planner_server...")
@@ -59,11 +61,18 @@ class MoveitPlanner:
                                                          PlanMoveEEAction, self.plan, auto_start=False)
         self._js_plan_server = actionlib.SimpleActionServer("moveit_%s_joint_space_plan" % robot_name,
                                                             PlanJointSpaceAction, self.plan_joint_space, auto_start=False)
+        self._wayp_plan_server = actionlib.SimpleActionServer("moveit_%s_wayp_plan" % robot_name,
+                                                              PlanWaypointsAction, self.plan_waypoints, auto_start=False)
         self._exec_server = actionlib.SimpleActionServer("moveit_%s_exec" % robot_name,
                                                          ExecMoveitPlanAction, self.execute, auto_start=False)
+        self._get_state_server = actionlib.SimpleActionServer("moveit_%s_get_state" % robot_name,
+                                                              GetStateAction, self.get_state, auto_start=False)
+                
         self._plan_server.start()
         self._js_plan_server.start()
+        self._wayp_plan_server.start()
         self._exec_server.start()
+        self._get_state_server.start()
 
         self._current_plan = None
         self._current_goal = None
@@ -72,6 +81,8 @@ class MoveitPlanner:
         for n in self._joint_groups:
             util.info("Joint values for %s" % n)
             util.info("    " + str(self._joint_groups[n].get_current_joint_values()))
+            util.info("Current pose for %s" % n)
+            util.info("    " + str(self._joint_groups[n].get_current_pose().pose))
 
         if visualize_plan:
             self._display_trajectory_publisher = rospy.Publisher(
@@ -87,19 +98,24 @@ class MoveitPlanner:
         if self._current_goal is not None:
             rospy.logwarn("Previous goal exists. Clear it first.")
             return
-        self._current_goal = goal
         group_name = goal.group_name
-        pose_target = goal.pose
-        util.info("Generating plan for goal [%s to %s]" % (group_name, pose_target))
+        self._current_goal = self._joint_groups[group_name].get_current_pose().pose
+        self._current_goal.position = goal.pose.position
+        if not goal.trans_only:
+            self._current_goal.orientation = goal.pose.orientation
+        util.info("Generating plan for goal [%s to %s]" % (group_name, self._current_goal))
 
-        self._joint_groups[group_name].set_pose_target(pose_target)
+        self._joint_groups[group_name].set_pose_target(self._current_goal)
         self._current_plan = self._joint_groups[group_name].plan()
+        result = PlanWaypointsResult()
         if len(self._current_plan.joint_trajectory.points) > 0:
             util.success("A plan has been made. See it in RViz [check Show Trail and Show Collisions]")
-            self._plan_server.set_succeeded()
+            result.status = MoveitPlanner.Status.SUCCESS
+            self._plan_server.set_succeeded(result)
         else:
             util.error("No plan found.")
-            self._plan_server.set_aborted()
+            result.status = MoveitPlanner.Status.ABORTED
+            self._plan_server.set_aborted(result)
             
 
     def plan_joint_space(self, goal):
@@ -119,6 +135,29 @@ class MoveitPlanner:
             util.error("No plan found.")
             self._js_plan_server.set_aborted()
 
+            
+    def plan_waypoints(self, goal):
+        if self._current_goal is not None:
+            rospy.logwarn("Previous goal exists. Clear it first.")
+            return
+        self._current_goal = goal
+        group_name = goal.group_name
+        util.info("Generating waypoints plan for %s" % (group_name))
+        
+        current_pose = self._joint_groups[group_name].get_current_pose().pose
+        waypoints = [current_pose] + goal.waypoints
+        self._current_plan, fraction = self._joint_groups[group_name].compute_cartesian_path(waypoints, 0.005, 0.0)
+        result = PlanWaypointsResult()
+        if len(self._current_plan.joint_trajectory.points) > 0:
+            util.success("A plan has been made. See it in RViz [check Show Trail and Show Collisions]")
+            result.status = MoveitPlanner.Status.SUCCESS
+            self._wayp_plan_server.set_succeeded(result)
+        else:
+            util.error("No plan found.")
+            result.status = MoveitPlanner.Status.ABORTED
+            self._wayp_plan_server.set_aborted(result)
+        
+
     def execute(self, goal):
         group_name = goal.group_name
         util.info("Received executive action from client [type = %d]" % goal.action)
@@ -129,18 +168,32 @@ class MoveitPlanner:
                 util.success("Plan for %s will execute." % group_name)
             else:
                 util.error("Plan for %s will NOT execute. Is there a collision?" % group_name)
+            self.cancel_goal(group_name)  # get rid of this goal since we have completed it
+            util.info("Now %s is at pose:\n%s" % (group_name,
+                                                  self._joint_groups[group_name].get_current_pose().pose))
             self._exec_server.set_succeeded()
                 
         elif goal.action == ActionType.CANCEL:
-            self._joint_groups[group_name].clear_pose_targets()
-            util.success("Plan for %s has been canceled" % group_name)
-            self._current_plan = None
-            self._current_goal = None
+            self.cancel_goal(group_name)
             self._exec_server.set_succeeded()
             
         else:
             util.error("Unrecognized action type %d" % goal.action)
             self._exec_server.set_aborted()
+
+    def get_state(self, goal):
+        util.info("Getting state")
+        group_name = goal.group_name
+        result = GetStateResult()
+        result.pose = self._joint_groups[group_name].get_current_pose().pose
+        result.joint_values = self._joint_groups[group_name].get_current_joint_values()
+        self._get_state_server.set_succeeded(result)
+
+    def cancel_goal(self, group_name):
+        self._joint_groups[group_name].clear_pose_targets()
+        util.success("Goal for %s has been cleared" % group_name)
+        self._current_plan = None
+        self._current_goal = None
             
 
 if __name__ == "__main__":

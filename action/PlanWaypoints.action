@@ -1,7 +1,6 @@
 # Define the goal
-geometry_msgs/Pose pose
+geometry_msgs/Pose[] waypoints
 string group_name
-bool trans_only
 ---
 uint32 status
 ---
