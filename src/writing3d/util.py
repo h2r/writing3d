@@ -1,3 +1,5 @@
+import math
+
 # Colors on terminal https://stackoverflow.com/a/287944/2893053
 class bcolors:
     WHITE = '\033[97m'
@@ -76,3 +78,14 @@ def downsample(arr1d, final_len):
     result = [arr1d[i] for i in range(len(arr1d))
               if i % (len(arr1d) / final_len) == 0]
     return result
+
+# Geometry
+def pose_close(p1, p2, r=0.005):
+    """
+    p1 and p2 are geometry_msgs/Pose objects. Returns true
+    if their positions are within the given radius.
+    """
+    dist = math.sqrt((p1.position.x - p2.position.x)**2
+                     + (p1.position.y - p2.position.y)**2
+                     + (p1.position.z - p2.position.z)**2)
+    return dist <= 0.005

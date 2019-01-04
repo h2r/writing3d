@@ -37,6 +37,11 @@ class MoveitPlanner:
         ABORTED = 0
         SUCCESS = 1
 
+    class PlanType:
+        CARTESIAN = 1
+        JOINT_SPACE = 2
+        WAYPOINTS = 3
+
     def __init__(self, group_names, visualize_plan=True, robot_name="movo"):
 
         # Initializing node
@@ -76,6 +81,7 @@ class MoveitPlanner:
 
         self._current_plan = None
         self._current_goal = None
+        self._plan_type = None
 
         # Print current joint positions
         for n in self._joint_groups:
@@ -89,7 +95,6 @@ class MoveitPlanner:
                 '/move_group/display_planned_path',
                 moveit_msgs.msg.DisplayTrajectory)
 
-
     def __del__(self):
         moveit_commander.roscpp_shutdown()
 
@@ -98,6 +103,7 @@ class MoveitPlanner:
         if self._current_goal is not None:
             rospy.logwarn("Previous goal exists. Clear it first.")
             return
+        self._plan_type = MoveitPlanner.PlanType.CARTESIAN
         group_name = goal.group_name
         self._current_goal = self._joint_groups[group_name].get_current_pose().pose
         self._current_goal.position = goal.pose.position
@@ -122,6 +128,7 @@ class MoveitPlanner:
         if self._current_goal is not None:
             rospy.logwarn("Previous goal exists. Clear it first.")
             return
+        self._plan_type = MoveitPlanner.PlanType.JOINT_SPACE
         self._current_goal = goal
         group_name = goal.group_name
         util.info("Generating joint space plan [%s to %s]" % (group_name, goal.joint_values))
@@ -140,16 +147,19 @@ class MoveitPlanner:
         if self._current_goal is not None:
             rospy.logwarn("Previous goal exists. Clear it first.")
             return
+        self._plan_type = MoveitPlanner.PlanType.WAYPOINTS
         self._current_goal = goal
         group_name = goal.group_name
         util.info("Generating waypoints plan for %s" % (group_name))
         
         current_pose = self._joint_groups[group_name].get_current_pose().pose
-        waypoints = [current_pose] + goal.waypoints
+        waypoints = goal.waypoints #[current_pose] + 
         self._current_plan, fraction = self._joint_groups[group_name].compute_cartesian_path(waypoints, 0.01, 0.0)
         result = PlanWaypointsResult()
         if len(self._current_plan.joint_trajectory.points) > 0:
-            util.success("A plan has been made. See it in RViz [check Show Trail and Show Collisions]")
+            print(self._current_plan.joint_trajectory.points)
+            util.success("A plan has been made (%d points). See it in RViz [check Show Trail and Show Collisions]"
+                         % len(self._current_plan.joint_trajectory.points))
             result.status = MoveitPlanner.Status.SUCCESS
             self._wayp_plan_server.set_succeeded(result)
         else:
@@ -164,7 +174,10 @@ class MoveitPlanner:
 
         result = ExecMoveitPlanResult()
         if goal.action == ActionType.EXECUTE:
-            success = self._joint_groups[group_name].go(wait=goal.wait)
+            if self._plan_type == MoveitPlanner.PlanType.WAYPOINTS:
+                success = self._joint_groups[group_name].execute(self._current_plan)
+            else:
+                success = self._joint_groups[group_name].go(wait=goal.wait)
             if success:
                 util.success("Plan for %s will execute." % group_name)
                 result.status = MoveitPlanner.Status.SUCCESS

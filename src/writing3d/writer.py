@@ -10,7 +10,7 @@ from writing3d.moveit_client import MoveitClient
 from writing3d.moveit_planner import MoveitPlanner
 from actionlib import SimpleGoalState
 
-RESOLUTION = 0.000001
+RESOLUTION = 0.0005
 
 class StrokeWriter:
 
@@ -47,9 +47,14 @@ class StrokeWriter:
             while self._waypoints is None:
                 sys.stdout.write(".")
                 rospy.sleep(1.0)
+            sys.stdout.write("\n")
         except rospy.ROSInternalException:
             print("Interrupt...")
             return
+        
+    @property
+    def waypoints(self):
+        return self._waypoints
 
     @property
     def origin_pose(self):
@@ -62,6 +67,16 @@ class StrokeWriter:
             xvals.append(pose.position.x)
             yvals.append(pose.position.y)
         plt.plot(xvals, yvals)
+
+    def _print_waypoint_stats(self):
+        print("-----waypoint stats-----")
+        xvals = [p.position.x for p in self._waypoints]
+        yvals = [p.position.y for p in self._waypoints]
+        zvals = [p.position.z for p in self._waypoints]
+        print("Total waypoints: %d" % len(self._waypoints))
+        print("x range: %.3f (%.3f ~ %.3f)" % (np.ptp(xvals), np.min(xvals), np.max(xvals)))
+        print("y range: %.3f (%.3f ~ %.3f)" % (np.ptp(yvals), np.min(yvals), np.max(yvals)))
+        print("z range: %.3f (%.3f ~ %.3f)" % (np.ptp(zvals), np.min(zvals), np.max(zvals)))
 
     def _prepare_waypoints(self, goal_status, result):
         """
@@ -86,7 +101,10 @@ class StrokeWriter:
 
             # filter waypoints. There are too many
             self._waypoints = util.downsample(waypoints, self._num_waypoints)
-            print(len(self._waypoints))
+
+            # Print stats
+            self._print_waypoint_stats()
+            
 
     def _draw(self, method="together", done_cb=None, wait_time=10.0):
         """
@@ -132,14 +150,27 @@ class StrokeWriter:
         rospy.sleep(wait_time)
 
     def _execute_waypoints_plan(self, status, result):
+
+        def executing(status, result):
+            self._client.get_state(self._arm, completed)
         
-        def completed():
-            self._status = StrokeWriter.Status.COMPLETED
+        def completed(status, result):
+            # Mark as completed when the arm actually moved near target pose.
+            # Otherwise, keep getting state (sleep for 1 sec).
+            if util.pose_close(self._waypoints[-1], result.pose, r=0.005):
+                self._status = StrokeWriter.Status.COMPLETED
+            else:
+                util.info("Expecting arm to move to")
+                util.info(str(self._waypoints[-1]))
+                util.info("Now at")
+                util.info(str(result.pose))
+                rospy.sleep(1)
+                self._client.get_state(self._arm, completed)
             
         if result.status == MoveitPlanner.Status.SUCCESS:
             print("great! Execute now...")
             self._client.execute_plan(self._arm,
-                                      done_cb=completed)
+                                      done_cb=executing)
             rospy.sleep(3)
         else:
             print("Oops. Something went wrong :(")
@@ -160,7 +191,7 @@ class StrokeWriter:
 class CharacterWriter:
 
     def __init__(self, strokes, dimension=500, resolution=RESOLUTION,
-                 robot_name="movo", arm="right_arm"):
+                 robot_name="movo", arm="right_arm", num_waypoints=5):
         self._client = MoveitClient(robot_name)
         self._dimension = dimension
         self._resolution = resolution
@@ -170,54 +201,67 @@ class CharacterWriter:
         self._origin_pose = None
         self._client = MoveitClient(robot_name)
 
-    def write(self, index=-1, num_waypoints=5, visualize=True, method="together"):
+        # Construct writers
+        self._writers = []
+        for i in range(len(self._strokes)):
+            util.info("Initializing writer for stroke %d" % i)
+            self._writers.append(StrokeWriter(self._strokes[i], self._client,
+                                              dimension=self._dimension, resolution=self._resolution,
+                                              robot_name=self._robot_name, arm=self._arm,
+                                              num_waypoints=num_waypoints, origin_pose=self._origin_pose))
+            self._origin_pose = self._writers[i].origin_pose
+
+        # Print stats
+        self._print_waypoint_stats()
+
+    def visualize(self):
+        for i in range(len(self._strokes)):
+            self._writers[i].visualize()
+        plt.show()
+                                 
+    def _print_waypoint_stats(self):
+        print("=========Character waypoint stats========")
+        xvals = [p.position.x
+                 for w in self._writers
+                 for p in w.waypoints]
+        yvals = [p.position.y
+                 for w in self._writers
+                 for p in w.waypoints]
+        zvals = [p.position.z
+                 for w in self._writers
+                 for p in w.waypoints]
+        print("Total waypoints: %d" % len(xvals))
+        print("x range: %.3f (%.3f ~ %.3f)" % (np.ptp(xvals), np.min(xvals), np.max(xvals)))
+        print("y range: %.3f (%.3f ~ %.3f)" % (np.ptp(yvals), np.min(yvals), np.max(yvals)))
+        print("z range: %.3f (%.3f ~ %.3f)" % (np.ptp(zvals), np.min(zvals), np.max(zvals)))
+        
+
+    def write(self, index=-1, visualize=True, method="together"):
         if index < 0:
             # Draw entire character
             for i in range(len(self._strokes)):
-                self.write(i, num_waypoints=num_waypoints)
-            plt.show()
+                self.write(i)
         else:
             if index > 0 and self._origin_pose is None:
                 util.warning("Origin pose unknown but not writing the first stroke."\
                              "Will treat current pose as origin.")
-            writer = StrokeWriter(self._strokes[index], self._client,
-                                  dimension=self._dimension, resolution=self._resolution,
-                                  robot_name=self._robot_name, arm=self._arm,
-                                  num_waypoints=num_waypoints, origin_pose=self._origin_pose)
-
-            # Visualize
-            if visualize:
-                writer.visualize()
-            
             # Wait till finish
             sys.stdout.write("Drawing stroke %d..." % index)
-            # if method == "together":
-            #     writer.draw_by_waypoints(wait_time=10.0)
+            if method == "together":
+                self._writers[index].draw_by_waypoints(wait_time=10.0)
             # elif method == "separate":
             #     writer.draw_incrementally(wait_time=10.0)
-            # while not writer.done():
-            #     sys.stdout.write(".")
-            #     rospy.sleep(1.0)
+            while not self._writers[index].done():
+                sys.stdout.write(".")
+                rospy.sleep(1.0)
             util.success("Done!")
-            self._origin_pose = writer.origin_pose
 
 
 if __name__ == "__main__":
     # Ad-hoc
     FILE = "../../data/stroke.npy"
     characters = np.load(FILE)
-    # stroke = np.load(FILE)[0][0]
-    # print(stroke)
-    try:
-        util.info("Starting character writer...")
-        writer = CharacterWriter(characters[0])
-        writer.write(num_waypoints=5)
-        
-        # util.info("Starting stroke writer...")
-        # writer = StrokeWriter(stroke)
+    util.info("Starting character writer...")
+    writer = CharacterWriter(characters[0])
+    writer.write()
 
-        # writer.draw_incrementally(wait_time=10.0)
-        # # writer.draw_by_waypoints(wait_time=10.0)
-        rospy.spin()
-    except rospy.ROSInterruptException:
-        pass
