@@ -162,23 +162,29 @@ class MoveitPlanner:
         group_name = goal.group_name
         util.info("Received executive action from client [type = %d]" % goal.action)
 
+        result = ExecMoveitPlanResult()
         if goal.action == ActionType.EXECUTE:
             success = self._joint_groups[group_name].go(wait=goal.wait)
             if success:
                 util.success("Plan for %s will execute." % group_name)
+                result.status = MoveitPlanner.Status.SUCCESS
+                rospy.sleep(1)
             else:
                 util.error("Plan for %s will NOT execute. Is there a collision?" % group_name)
+                result.status = MoveitPlanner.Status.ABORTED
             self.cancel_goal(group_name)  # get rid of this goal since we have completed it
             util.info("Now %s is at pose:\n%s" % (group_name,
                                                   self._joint_groups[group_name].get_current_pose().pose))
-            self._exec_server.set_succeeded()
+            self._exec_server.set_succeeded(result)
                 
         elif goal.action == ActionType.CANCEL:
             self.cancel_goal(group_name)
-            self._exec_server.set_succeeded()
+            result.status = MoveitPlanner.Status.SUCCESS 
+            self._exec_server.set_succeeded(result)
             
         else:
             util.error("Unrecognized action type %d" % goal.action)
+            result.status = MoveitPlanner.Status.ABORTED
             self._exec_server.set_aborted()
 
     def get_state(self, goal):

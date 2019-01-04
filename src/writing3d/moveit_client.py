@@ -74,7 +74,7 @@ class MoveitClient:
             self._plan_client.send_goal(goal, done_cb=done_cb)
             self._plan_client.wait_for_result(rospy.Duration.from_sec(5.0))
             
-        if type(pose) == tuple:
+        elif type(pose) == tuple:
             trans_only = True
             pose_target = geometry_msgs.msg.Pose()
             pose_target.position.x = pose[0]
@@ -102,7 +102,7 @@ class MoveitClient:
                 goal = PlanWaypointsGoal()
                 goal.waypoints = pose
                 goal.group_name = group_name
-                util.info("Client sending goal [%s, %s]" % (group_name, pose))
+                util.info("Client sending waypoints goal [%s]" % (group_name))
                 self._wayp_plan_client.send_goal(goal, done_cb=done_cb)
                 self._wayp_plan_client.wait_for_result(rospy.Duration.from_sec(5.0))
             else:
@@ -123,7 +123,7 @@ class MoveitClient:
         goal.wait = wait
         goal.action = ActionType.EXECUTE
         goal.group_name = group_name
-        self._exec_client.send_goal(goal, done_cb=None)
+        self._exec_client.send_goal(goal, done_cb=done_cb)
         self._exec_client.wait_for_result(rospy.Duration.from_sec(5.0))
 
     def cancel_plan(self, group_name, wait=True):

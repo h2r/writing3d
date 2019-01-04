@@ -18,7 +18,7 @@ class StrokeWriter:
         DRAWING = 1
         COMPLETED = 2
 
-    def __init__(self, stroke, dimension=500, resolution=0.01,
+    def __init__(self, stroke, dimension=500, resolution=0.000001,
                  robot_name="movo", arm="right_arm"):
         """
         stroke (np.array) array of waypoints (x, y, z, z2, altitude, azimuth)
@@ -58,10 +58,13 @@ class StrokeWriter:
                 # Map from image space to world space
                 wx = -y * self._resolution
                 wy = -x * self._resolution
-                current_pose.position.x = wx
-                current_pose.position.y = wy
+                print(wx, wy)
+                current_pose.position.x += wx
+                current_pose.position.y += wy
                 waypoints.append(copy.deepcopy(current_pose))
             self._waypoints = waypoints
+            util.info(str(self._waypoints[0].position))
+            util.info(str(self._waypoints[-1].position))
 
     def _draw(self, method="together", done_cb=None, wait_time=10.0):
         """
@@ -71,14 +74,23 @@ class StrokeWriter:
         If "separate", done_cb won't be called. You need to call "done" to check
            if the drawing is finished.
         """
-        def go(self, status, result):
+        def plan(status, result):
             if result.status == MoveitPlanner.Status.SUCCESS:
                 if self._draw_indx >= len(self._waypoints):
                     return
                 else:
+                    util.info("Sending goal [%d]" % (self._draw_indx))
                     self._client.send_goal(self._arm, self._waypoints[self._draw_indx],
                                            done_cb=go)
                     self._draw_indx += 1
+            else:
+                util.error("Oops. Something went wrong :(")
+                return SimpleGoalState.DONE
+
+        
+        def go(status, result):
+            if result.status == MoveitPlanner.Status.SUCCESS:
+                self._client.execute_plan(self._arm, done_cb=plan)
             else:
                 util.error("Oops. Something went wrong :(")
                 return SimpleGoalState.DONE
@@ -89,8 +101,10 @@ class StrokeWriter:
 
         self._status = StrokeWriter.Status.DRAWING
         if method == "together":
+            self._waypoints = [self._waypoints[0], self._waypoints[-1]]
             self._client.send_goal(self._arm, self._waypoints, done_cb=done_cb)
         elif method == "separate":
+            self._waypoints = [self._waypoints[0], self._waypoints[-1]]
             self._client.send_goal(self._arm, self._waypoints[0], done_cb=go)
             self._draw_indx = 1
         util.info("Waiting to draw...")
@@ -127,6 +141,7 @@ if __name__ == "__main__":
         util.info("Starting stroke writer...")
         writer = StrokeWriter(stroke)
 
+        # writer.draw_incrementally(wait_time=10.0)
         writer.draw_by_waypoints(wait_time=10.0)
         rospy.spin()
     except rospy.ROSInterruptException:

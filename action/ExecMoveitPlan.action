@@ -3,6 +3,7 @@ string group_name
 uint32 action
 bool wait
 ---
+uint32 status
 ---
 # Define a feedback message
 uint32 status
