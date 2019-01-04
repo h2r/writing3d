@@ -70,3 +70,9 @@ def print_in_box(msgs, ho="=", vr="||", color=None):
     else:
         print(bcolors.s(color, ho*(max_len+2*(len(vr)+1))))
     
+# Data
+def downsample(arr1d, final_len):
+    # result may be off-by-1
+    result = [arr1d[i] for i in range(len(arr1d))
+              if i % (len(arr1d) / final_len) == 0]
+    return result
