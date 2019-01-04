@@ -10,7 +10,7 @@ from writing3d.moveit_client import MoveitClient
 from writing3d.moveit_planner import MoveitPlanner
 from actionlib import SimpleGoalState
 
-RESOLUTION = 0.0005
+RESOLUTION = 0.0001
 
 class StrokeWriter:
 
@@ -89,6 +89,7 @@ class StrokeWriter:
             state = result
             if self._origin_pose is None:
                 self._origin_pose = copy.deepcopy(state.pose)
+
             waypoints = []  # list of poses
             for x, y, z, z2, al, az in self._stroke:
                 # Map from image space to world space
@@ -101,6 +102,11 @@ class StrokeWriter:
 
             # filter waypoints. There are too many
             self._waypoints = util.downsample(waypoints, self._num_waypoints)
+            
+            # At the end of the stroke, lift the pen.
+            last_pose = copy.deepcopy(self._waypoints[-1])
+            last_pose.position.z += 0.03
+            self._waypoints.append(last_pose)
 
             # Print stats
             self._print_waypoint_stats()
@@ -263,5 +269,7 @@ if __name__ == "__main__":
     characters = np.load(FILE)
     util.info("Starting character writer...")
     writer = CharacterWriter(characters[0])
+    util.warning("Begin writing...")
+    rospy.sleep(2)
     writer.write()
 
