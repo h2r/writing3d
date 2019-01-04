@@ -146,7 +146,7 @@ class MoveitPlanner:
         
         current_pose = self._joint_groups[group_name].get_current_pose().pose
         waypoints = [current_pose] + goal.waypoints
-        self._current_plan, fraction = self._joint_groups[group_name].compute_cartesian_path(waypoints, 0.005, 0.0)
+        self._current_plan, fraction = self._joint_groups[group_name].compute_cartesian_path(waypoints, 0.01, 0.0)
         result = PlanWaypointsResult()
         if len(self._current_plan.joint_trajectory.points) > 0:
             util.success("A plan has been made. See it in RViz [check Show Trail and Show Collisions]")

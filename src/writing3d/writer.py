@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import matplotlib.pyplot as plt
 import sys
 import rospy
 import util
@@ -54,6 +55,14 @@ class StrokeWriter:
     def origin_pose(self):
         return self._origin_pose
 
+    def visualize(self):
+        xvals = []
+        yvals = []
+        for pose in self._waypoints:
+            xvals.append(pose.position.x)
+            yvals.append(pose.position.y)
+        plt.plot(xvals, yvals)
+
     def _prepare_waypoints(self, goal_status, result):
         """
         Treat the current pose as corresponding to the "origin" of the character
@@ -64,19 +73,16 @@ class StrokeWriter:
         if goal_status >= SimpleGoalState.DONE:
             state = result
             if self._origin_pose is None:
-                current_pose = copy.deepcopy(state.pose)
-                self._origin_pose = current_pose
-            else:
-                current_pose = self._origin_pose
+                self._origin_pose = copy.deepcopy(state.pose)
             waypoints = []  # list of poses
             for x, y, z, z2, al, az in self._stroke:
                 # Map from image space to world space
+                current_pose = copy.deepcopy(self._origin_pose)
                 wx = -y * self._resolution
                 wy = -x * self._resolution
-                print(wx, wy)
                 current_pose.position.x += wx
                 current_pose.position.y += wy
-                waypoints.append(copy.deepcopy(current_pose))
+                waypoints.append(current_pose)
 
             # filter waypoints. There are too many
             self._waypoints = util.downsample(waypoints, self._num_waypoints)
@@ -126,9 +132,14 @@ class StrokeWriter:
         rospy.sleep(wait_time)
 
     def _execute_waypoints_plan(self, status, result):
+        
+        def completed():
+            self._status = StrokeWriter.Status.COMPLETED
+            
         if result.status == MoveitPlanner.Status.SUCCESS:
             print("great! Execute now...")
-            self._client.execute_plan(self._arm)
+            self._client.execute_plan(self._arm,
+                                      done_cb=completed)
             rospy.sleep(3)
         else:
             print("Oops. Something went wrong :(")
@@ -159,12 +170,12 @@ class CharacterWriter:
         self._origin_pose = None
         self._client = MoveitClient(robot_name)
 
-        
-    def write(self, index=-1, num_waypoints=5):
+    def write(self, index=-1, num_waypoints=5, visualize=True, method="together"):
         if index < 0:
             # Draw entire character
             for i in range(len(self._strokes)):
                 self.write(i, num_waypoints=num_waypoints)
+            plt.show()
         else:
             if index > 0 and self._origin_pose is None:
                 util.warning("Origin pose unknown but not writing the first stroke."\
@@ -172,13 +183,21 @@ class CharacterWriter:
             writer = StrokeWriter(self._strokes[index], self._client,
                                   dimension=self._dimension, resolution=self._resolution,
                                   robot_name=self._robot_name, arm=self._arm,
-                                  num_waypoints=num_waypoints)
+                                  num_waypoints=num_waypoints, origin_pose=self._origin_pose)
+
+            # Visualize
+            if visualize:
+                writer.visualize()
+            
             # Wait till finish
             sys.stdout.write("Drawing stroke %d..." % index)
-            writer.draw_incrementally(wait_time=10.0)
-            while not writer.done():
-                sys.stdout.write(".")
-                rospy.sleep(1.0)
+            # if method == "together":
+            #     writer.draw_by_waypoints(wait_time=10.0)
+            # elif method == "separate":
+            #     writer.draw_incrementally(wait_time=10.0)
+            # while not writer.done():
+            #     sys.stdout.write(".")
+            #     rospy.sleep(1.0)
             util.success("Done!")
             self._origin_pose = writer.origin_pose
 
@@ -192,7 +211,8 @@ if __name__ == "__main__":
     try:
         util.info("Starting character writer...")
         writer = CharacterWriter(characters[0])
-        writer.write(0, num_waypoints=5)
+        writer.write(num_waypoints=5)
+        
         # util.info("Starting stroke writer...")
         # writer = StrokeWriter(stroke)
 
