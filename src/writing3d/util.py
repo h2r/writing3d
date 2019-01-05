@@ -74,7 +74,8 @@ def print_in_box(msgs, ho="=", vr="||", color=None):
     
 # Data
 def downsample(arr1d, final_len):
-    # result may be off-by-1
+    if len(arr1d) < final_len:
+        return arr1d
     result = [arr1d[i] for i in range(len(arr1d))
               if i % (len(arr1d) / final_len) == 0]
     return result

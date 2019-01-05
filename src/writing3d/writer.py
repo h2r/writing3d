@@ -282,7 +282,7 @@ if __name__ == "__main__":
     FILE = "../../data/stroke.npy"
     characters = np.load(FILE)
     util.info("Starting character writer...")
-    writer = CharacterWriter(characters[0])
+    writer = CharacterWriter(characters[2], num_waypoints=10)
     util.warning("Begin writing...")
     rospy.sleep(2)
     writer.write()
