@@ -104,7 +104,10 @@ class StrokeWriter:
             self._waypoints = util.downsample(waypoints, self._num_waypoints)
             
             # At the end of the stroke, lift the pen.
-            last_pose = copy.deepcopy(self._waypoints[-1])
+            if len(waypoints) > 0:
+                last_pose = copy.deepcopy(self._waypoints[-1])
+            else:
+                last_pose = copy.deepcopy(self._origin_pose)
             last_pose.position.z += 0.03
             self._waypoints.append(last_pose)
 
@@ -197,11 +200,19 @@ class StrokeWriter:
 class CharacterWriter:
 
     def __init__(self, strokes, dimension=500, resolution=RESOLUTION,
-                 robot_name="movo", arm="right_arm", num_waypoints=5):
+                 robot_name="movo", arm="right_arm", num_waypoints=5,
+                 blank_stroke_first=True):
+        """
+        with blank_stroke_first set to True, the robot writes an empty
+        stroke, which effectively lifts the arm before writing the actual
+        first stroke.
+        """
         self._client = MoveitClient(robot_name)
         self._dimension = dimension
         self._resolution = resolution
-        self._strokes = strokes
+        self._strokes = strokes.tolist()
+        if blank_stroke_first:
+            self._strokes.insert(0, [])
         self._arm = arm
         self._robot_name = robot_name
         self._origin_pose = None
@@ -224,7 +235,7 @@ class CharacterWriter:
         for i in range(len(self._strokes)):
             self._writers[i].visualize()
         plt.show()
-                                 
+
     def _print_waypoint_stats(self):
         print("=========Character waypoint stats========")
         xvals = [p.position.x
@@ -252,7 +263,10 @@ class CharacterWriter:
                 util.warning("Origin pose unknown but not writing the first stroke."\
                              "Will treat current pose as origin.")
             # Wait till finish
-            sys.stdout.write("Drawing stroke %d..." % index)
+            if len(self._strokes[index]) == 0:
+                sys.stdout.write("Empty stroke. Lifting arm...")
+            else:
+                sys.stdout.write("Drawing stroke %d..." % index)
             if method == "together":
                 self._writers[index].draw_by_waypoints(wait_time=10.0)
             # elif method == "separate":
