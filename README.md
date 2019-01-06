@@ -18,6 +18,8 @@ The YAML file can also be just a list of 7 target joint positions (joint space g
 ```
 ./moveit_client right_arm -f <path_to_file>
 ```
+The `moveit_client.py` provides the class `MoveitClient` you can initialize and use to talk to the server (planner).
+
 If you want to move the arm manually (without planning),
 ```
 ./movo_pose_pubilsher -i <list of joint indices> -v <list of joint values>
