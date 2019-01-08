@@ -8,6 +8,7 @@ import copy
 import numpy as np
 from writing3d.moveit_client import MoveitClient
 from writing3d.moveit_planner import MoveitPlanner
+import writing3d.common as common
 from actionlib import SimpleGoalState
 
 RESOLUTION = 0.0004 #0.0001
@@ -159,7 +160,7 @@ class StrokeWriter:
             print("great! Execute now...")
             self._client.execute_plan(self._arm,
                                       done_cb=executing)
-            rospy.sleep(3)
+            rospy.sleep(0.5)
         else:
             print("Oops. Something went wrong :(")
 
@@ -261,6 +262,14 @@ class CharacterWriter:
                 self._client.go_fail()
                 return
 
+    def dip_pen(self):
+        dip_ready = common.goal_file("dip_ready")
+        dip_in = common.goal_file("dip_in")
+        dip_move = common.goal_file("dip_move")
+        goal_files = [
+            dip_ready, dip_in, dip_move, dip_in, dip_ready
+        ]
+        self._client.send_and_execute_joint_space_goals_from_files(self._arm, goal_files)
 
 if __name__ == "__main__":
     # Ad-hoc
@@ -269,9 +278,11 @@ if __name__ == "__main__":
     util.info("Starting character writer...")
     try:
         writer = CharacterWriter(characters[4], num_waypoints=10)
-        util.warning("Begin writing...")
-        rospy.sleep(2)
-        writer.write()
+        util.warning("Dipping pen...")
+        writer.dip_pen()
+        # util.warning("Begin writing...")
+        # rospy.sleep(2)
+        # writer.write()
     except KeyboardInterrupt:
         print("Terminating...")
     except Exception as ex:

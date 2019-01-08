@@ -132,7 +132,7 @@ class MoveitPlanner:
         self._current_goal = goal
         group_name = goal.group_name
         util.info("Generating joint space plan [%s to %s]" % (group_name, goal.joint_values))
-        
+
         self._joint_groups[group_name].set_joint_value_target(goal.joint_values)
         self._current_plan = self._joint_groups[group_name].plan()
         result = PlanJointSpaceResult()

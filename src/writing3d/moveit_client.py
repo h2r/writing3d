@@ -190,7 +190,7 @@ class MoveitClient:
         self._goal_indx = 1
         util.info("Executing goal sequence...")
         while self.is_healthy() and self._goal_indx < len(goals):
-            rospy.sleep(3)
+            rospy.sleep(1)
             
 
     def send_and_execute_joint_space_goals_from_files(self, group_name, paths):
