@@ -16,6 +16,7 @@ from writing3d.msg import PlanMoveEEAction, PlanMoveEEGoal, PlanMoveEEResult, Pl
     PlanWaypointsAction, PlanWaypointsGoal, PlanWaypointsResult, PlanWaypointsFeedback,\
     GetStateAction, GetStateGoal, GetStateResult, GetStateFeedback
 from writing3d.common import ActionType
+from writing3d.moveit_planner import MoveitPlanner
 
 import argparse
 
@@ -24,6 +25,10 @@ class MoveitClient:
 
     """SimpleActionClient that feeds goal to the Planner,
     and react accordingly based on the feedback and result."""
+
+    class Status:
+        HEALTHY = 0
+        FAILING = 1
 
     def __init__(self, robot_name="movo"):
         rospy.init_node("moveit_%s_client" % robot_name,
@@ -60,6 +65,13 @@ class MoveitClient:
         if not up:
             rospy.logerr("Timed out waiting for Moveit GetState server")
             sys.exit(1)
+        self._internal_status = MoveitClient.Status.HEALTHY
+
+    def is_healthy(self):
+        return self._internal_status == MoveitClient.Status.HEALTHY
+
+    def go_fail(self):
+        self._internal_status = MoveitClient.Status.FAILING
 
     def send_goal(self, group_name, pose, done_cb=None):
         """"`pose` can either be a Pose, a list of coordinates for
@@ -142,6 +154,65 @@ class MoveitClient:
         finished = self._get_state_client.wait_for_result(rospy.Duration.from_sec(wait_time))
         if not finished:
             util.error("Client didn't hear from Server in %s seconds." % str(wait_time))
+            self._internal_status = MoveitClient.Status.FAILING
+
+    def send_and_execute_goals(self, group_name, goals):
+        """
+        Send and execute a sequence of goals, one by one. 
+
+        The `goals` can be in any format that the `send_goal` function understands,
+        so either a Pose, a list of coordinates for the end effector, or a list
+        of joint values.
+        """
+        def go(status, result):
+            if result.status == MoveitPlanner.Status.SUCCESS:
+                self.execute_plan(group_name, done_cb=plan)
+            else:
+                util.error("Oops. Something went wrong :(")
+                self._internal_status = MoveitClient.Status.FAILING
+            
+        def plan(status, result):
+            if result.status == MoveitPlanner.Status.SUCCESS:
+                if self._goal_indx >= len(goals):
+                    return
+                else:
+                    util.info2("Sending goal [%d]" % (self._goal_indx))
+                    self.send_goal(group_name, goals[self._goal_indx],
+                                   done_cb=go)
+                    self._goal_indx += 1
+            else:
+                util.error("Oops. Something went wrong :(")
+                self._internal_status = MoveitClient.Status.FAILING
+
+        util.info2("Sending goal [0]")
+        self.send_goal(group_name, goals[0],
+                       done_cb=go)
+        self._goal_indx = 1
+        util.info("Executing goal sequence...")
+        while self.is_healthy() and self._goal_indx < len(goals):
+            rospy.sleep(3)
+            
+
+    def send_and_execute_joint_space_goals_from_files(self, group_name, paths):
+        """
+        Each file in `paths` is a YAML file that each contains
+        one joint space goal.
+        """
+        goals = []
+        for goal_file in paths:
+            with open(goal_file) as f:
+                util.info("Loading goal from %s" % goal_file)
+                goal = yaml.load(f)
+                if type(goal[0]) == list:
+                    raise ValueError("Single goal only!")
+                else:
+                    goals.append(goal)
+                    
+        self.send_and_execute_goals(group_name, goals)
+
+# End of MoveitClient
+            
+            
 
 def parse_waypoints_diffs(points):
     """points is a list of relative differences in x, y, z directions."""
@@ -156,7 +227,7 @@ def parse_waypoints_diffs(points):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Movo Moveit Client. Priority (-g > -f > -e > -k > --state)')
+    parser = argparse.ArgumentParser(description='Movo Moveit Client. Priority (-g > -f > -e > -k > -F --state)')
     parser.add_argument('group_name', type=str, help="Group name that the client wants to talk to")
     parser.add_argument('-g', '--goal', type=float, nargs='+',
                         help='Plans goal, specified as a list of floats (either means end-effector pose,'\
@@ -165,6 +236,8 @@ def main():
                         help='Path to a yaml file that contains a goal, specified as a list of floats x y z w'\
                         ', or a list of joint values (more than 4 elements). If it contains multiple points,'\
                         'then they are interpreted as waypoints.')
+    parser.add_argument('-F', '--plan-exec-goal-files', type=str, nargs='+',
+                        help="Plan AND executes multiple goals specified by given files.")
     parser.add_argument('-e', '--exe', help='Execute the plan.', action="store_true")
     parser.add_argument('-k', '--cancel', help='Cancel the plan.', action="store_true")
     parser.add_argument('--ee', help="goal is end effector pose", action="store_true")
@@ -196,6 +269,10 @@ def main():
 
     elif args.cancel:
         client.cancel_plan(args.group_name)
+
+    elif args.plan_exec_goal_files:
+        client.send_and_execute_joint_space_goals_from_files(args.group_name,
+                                                             args.plan_exec_goal_files)
 
     elif args.state:
         goal = GetStateGoal()

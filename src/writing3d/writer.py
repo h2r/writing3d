@@ -10,7 +10,7 @@ from writing3d.moveit_client import MoveitClient
 from writing3d.moveit_planner import MoveitPlanner
 from actionlib import SimpleGoalState
 
-RESOLUTION = 0.0001
+RESOLUTION = 0.0004 #0.0001
 
 class StrokeWriter:
 
@@ -48,8 +48,9 @@ class StrokeWriter:
                 sys.stdout.write(".")
                 rospy.sleep(1.0)
             sys.stdout.write("\n")
-        except rospy.ROSInternalException:
+        except (KeyboardInterrupt, rospy.ROSInternalException):
             print("Interrupt...")
+            self._client.go_fail()
             return
         
     @property
@@ -123,28 +124,6 @@ class StrokeWriter:
         If "separate", done_cb won't be called. You need to call "done" to check
            if the drawing is finished.
         """
-        def plan(status, result):
-            if result.status == MoveitPlanner.Status.SUCCESS:
-                if self._draw_indx >= len(self._waypoints):
-                    self._status = StrokeWriter.Status.COMPLETED
-                    return
-                else:
-                    util.info("Sending goal [%d]" % (self._draw_indx))
-                    self._client.send_goal(self._arm, self._waypoints[self._draw_indx],
-                                           done_cb=go)
-                    self._draw_indx += 1
-            else:
-                util.error("Oops. Something went wrong :(")
-                return SimpleGoalState.DONE
-
-        
-        def go(status, result):
-            if result.status == MoveitPlanner.Status.SUCCESS:
-                self._client.execute_plan(self._arm, done_cb=plan)
-            else:
-                util.error("Oops. Something went wrong :(")
-                return SimpleGoalState.DONE
-
         # start planning
         if self._waypoints is None:
             return
@@ -153,8 +132,8 @@ class StrokeWriter:
         if method == "together":
             self._client.send_goal(self._arm, self._waypoints, done_cb=done_cb)
         elif method == "separate":
-            self._client.send_goal(self._arm, self._waypoints[0], done_cb=go)
-            self._draw_indx = 1
+            self._client.send_and_execute_goals(self._arm, self._waypoints)
+            self._status == StrokeWriter.Status.COMPLETED
         util.info("Waiting to draw...")
         rospy.sleep(wait_time)
 
@@ -271,10 +250,16 @@ class CharacterWriter:
                 self._writers[index].draw_by_waypoints(wait_time=10.0)
             # elif method == "separate":
             #     writer.draw_incrementally(wait_time=10.0)
-            while not self._writers[index].done():
-                sys.stdout.write(".")
-                rospy.sleep(1.0)
-            util.success("Done!")
+            try:
+                while self._client.is_healthy() \
+                      and not self._writers[index].done():
+                    sys.stdout.write(".")
+                    rospy.sleep(1.0)
+                util.success("Done!")
+            except (KeyboardInterrupt, rospy.ROSInternalException):
+                print("Interrupt...")
+                self._client.go_fail()
+                return
 
 
 if __name__ == "__main__":
@@ -282,8 +267,13 @@ if __name__ == "__main__":
     FILE = "../../data/stroke.npy"
     characters = np.load(FILE)
     util.info("Starting character writer...")
-    writer = CharacterWriter(characters[2], num_waypoints=10)
-    util.warning("Begin writing...")
-    rospy.sleep(2)
-    writer.write()
+    try:
+        writer = CharacterWriter(characters[4], num_waypoints=10)
+        util.warning("Begin writing...")
+        rospy.sleep(2)
+        writer.write()
+    except KeyboardInterrupt:
+        print("Terminating...")
+    except Exception as ex:
+        print("Exception! %s" % ex)
 

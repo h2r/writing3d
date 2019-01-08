@@ -2,6 +2,7 @@
 float32[] joint_values
 string group_name
 ---
+uint32 status
 ---
 # Define a feedback message
 uint32 status

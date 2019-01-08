@@ -135,12 +135,15 @@ class MoveitPlanner:
         
         self._joint_groups[group_name].set_joint_value_target(goal.joint_values)
         self._current_plan = self._joint_groups[group_name].plan()
+        result = PlanJointSpaceResult()
         if len(self._current_plan.joint_trajectory.points) > 0:
             util.success("A plan has been made. See it in RViz [check Show Trail and Show Collisions]")
-            self._js_plan_server.set_succeeded()
+            result.status = MoveitPlanner.Status.SUCCESS
+            self._js_plan_server.set_succeeded(result)
         else:
             util.error("No plan found.")
-            self._js_plan_server.set_aborted()
+            result.status = MoveitPlanner.Status.ABORTED
+            self._js_plan_server.set_aborted(result)
 
             
     def plan_waypoints(self, goal):
