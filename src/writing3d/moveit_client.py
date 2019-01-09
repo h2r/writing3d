@@ -156,47 +156,62 @@ class MoveitClient:
             util.error("Client didn't hear from Server in %s seconds." % str(wait_time))
             self._internal_status = MoveitClient.Status.FAILING
 
-    def send_and_execute_goals(self, group_name, goals):
+    def send_and_execute_goals(self, group_name, goals, wait=True):
         """
         Send and execute a sequence of goals, one by one. 
 
         The `goals` can be in any format that the `send_goal` function understands,
-        so either a Pose, a list of coordinates for the end effector, or a list
-        of joint values.
+        so either a Pose, a list of coordinates for the end effector (waypoints),
+        or a list of joint values.
+
+        If `wait` is true, wait until the last goal execution has been completed.
         """
-        def go(status, result):
+        def executing(status, result):
+            self.get_state(group_name, check_completed)
+        
+        def goal_sent(status, result):
             if result.status == MoveitPlanner.Status.SUCCESS:
-                self.execute_plan(group_name, done_cb=plan)
+                self.execute_plan(group_name, done_cb=executing)
             else:
                 util.error("Oops. Something went wrong :(")
                 self._internal_status = MoveitClient.Status.FAILING
             
-        def plan(status, result):
-            if result.status == MoveitPlanner.Status.SUCCESS:
+        def check_completed(status, result):
+            # The previous goal is completed if it has been cleared
+            # by the planner, which means has_goal will be false.
+            if not result.has_goal:
                 if self._goal_indx >= len(goals):
+                    self._all_goals_done = True
                     return
                 else:
-                    util.info2("Sending goal [%d]" % (self._goal_indx))
-                    self.send_goal(group_name, goals[self._goal_indx],
-                                   done_cb=go)
+                    util.info("Sending goal [%d]" % (self._goal_indx), bold=True)
+                    self.send_goal(group_name, goals[self._goal_indx], done_cb=goal_sent)
                     self._goal_indx += 1
             else:
-                util.error("Oops. Something went wrong :(")
-                self._internal_status = MoveitClient.Status.FAILING
-
-        util.info2("Sending goal [0]")
+                # The goal might still be executing. We wait and recheck.
+                # TODO: be sure?
+                util.info("Waiting for goal to be executed...")
+                rospy.sleep(1)
+                self.get_state(group_name, check_completed)
+                
+        self._all_goals_done = False
+                
+        util.info("Sending goal [0]", bold=True)
         self.send_goal(group_name, goals[0],
-                       done_cb=go)
+                       done_cb=goal_sent)
         self._goal_indx = 1
-        util.info("Executing goal sequence...")
-        while self.is_healthy() and self._goal_indx < len(goals):
+        while self.is_healthy() and \
+              ((self._goal_indx < len(goals) and not wait) \
+               or (not self._all_goals_done and wait)):
             rospy.sleep(1)
-            
 
-    def send_and_execute_joint_space_goals_from_files(self, group_name, paths):
+
+    def send_and_execute_joint_space_goals_from_files(self, group_name, paths,
+                                                      wait=True):
         """
         Each file in `paths` is a YAML file that each contains
-        one joint space goal.
+        one joint space goal. If `wait` is true, wait until the
+        last goal execution has been completed.
         """
         goals = []
         for goal_file in paths:
@@ -208,7 +223,7 @@ class MoveitClient:
                 else:
                     goals.append(goal)
                     
-        self.send_and_execute_goals(group_name, goals)
+        self.send_and_execute_goals(group_name, goals, wait=wait)
 
 # End of MoveitClient
             

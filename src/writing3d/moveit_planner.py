@@ -17,6 +17,7 @@ import shape_msgs.msg
 import actionlib
 import util
 import copy
+import argparse
 
 from writing3d.msg import PlanMoveEEAction, PlanMoveEEGoal, PlanMoveEEResult, PlanMoveEEFeedback, \
     ExecMoveitPlanAction, ExecMoveitPlanGoal, ExecMoveitPlanResult, ExecMoveitPlanFeedback, \
@@ -24,9 +25,10 @@ from writing3d.msg import PlanMoveEEAction, PlanMoveEEGoal, PlanMoveEEResult, Pl
     PlanWaypointsAction, PlanWaypointsGoal, PlanWaypointsResult, PlanWaypointsFeedback, \
     GetStateAction, GetStateGoal, GetStateResult, GetStateFeedback
 
-from writing3d.common import ActionType
+import writing3d.common as c
 
-import argparse
+
+c.DEBUG_LEVEL = 1
     
 
 class MoveitPlanner:
@@ -79,8 +81,8 @@ class MoveitPlanner:
         self._exec_server.start()
         self._get_state_server.start()
 
-        self._current_plan = None
-        self._current_goal = None
+        self._current_plan = {n:None for n in group_names}
+        self._current_goal = {n:None for n in group_names}
         self._plan_type = None
 
         # Print current joint positions
@@ -98,23 +100,22 @@ class MoveitPlanner:
     def __del__(self):
         moveit_commander.roscpp_shutdown()
 
-    
     def plan(self, goal):
-        if self._current_goal is not None:
+        group_name = goal.group_name
+        if self._current_goal[group_name] is not None:
             rospy.logwarn("Previous goal exists. Clear it first.")
             return
         self._plan_type = MoveitPlanner.PlanType.CARTESIAN
-        group_name = goal.group_name
-        self._current_goal = self._joint_groups[group_name].get_current_pose().pose
-        self._current_goal.position = goal.pose.position
+        self._current_goal[group_name] = self._joint_groups[group_name].get_current_pose().pose
+        self._current_goal[group_name].position = goal.pose.position
         if not goal.trans_only:
-            self._current_goal.orientation = goal.pose.orientation
-        util.info("Generating plan for goal [%s to %s]" % (group_name, self._current_goal))
+            self._current_goal[group_name].orientation = goal.pose.orientation
+        util.info("Generating plan for goal [%s to %s]" % (group_name, self._current_goal[group_name]))
 
-        self._joint_groups[group_name].set_pose_target(self._current_goal)
-        self._current_plan = self._joint_groups[group_name].plan()
+        self._joint_groups[group_name].set_pose_target(self._current_goal[group_name])
+        self._current_plan[group_name] = self._joint_groups[group_name].plan()
         result = PlanWaypointsResult()
-        if len(self._current_plan.joint_trajectory.points) > 0:
+        if len(self._current_plan[group_name].joint_trajectory.points) > 0:
             util.success("A plan has been made. See it in RViz [check Show Trail and Show Collisions]")
             result.status = MoveitPlanner.Status.SUCCESS
             self._plan_server.set_succeeded(result)
@@ -125,18 +126,21 @@ class MoveitPlanner:
             
 
     def plan_joint_space(self, goal):
-        if self._current_goal is not None:
+        util.info2("plan_joint_space")
+        group_name = goal.group_name
+        if self._current_goal[group_name] is not None:
             rospy.logwarn("Previous goal exists. Clear it first.")
             return
         self._plan_type = MoveitPlanner.PlanType.JOINT_SPACE
-        self._current_goal = goal
-        group_name = goal.group_name
+        self._current_goal[group_name] = goal
         util.info("Generating joint space plan [%s to %s]" % (group_name, goal.joint_values))
 
         self._joint_groups[group_name].set_joint_value_target(goal.joint_values)
-        self._current_plan = self._joint_groups[group_name].plan()
+        self._joint_groups[group_name].set_planning_time(1.0)
+        self._current_plan[group_name] = self._joint_groups[group_name].plan()
+        self._joint_groups[group_name].set_planning_time(5.0)  # set back to default value
         result = PlanJointSpaceResult()
-        if len(self._current_plan.joint_trajectory.points) > 0:
+        if len(self._current_plan[group_name].joint_trajectory.points) > 0:
             util.success("A plan has been made. See it in RViz [check Show Trail and Show Collisions]")
             result.status = MoveitPlanner.Status.SUCCESS
             self._js_plan_server.set_succeeded(result)
@@ -147,21 +151,22 @@ class MoveitPlanner:
 
             
     def plan_waypoints(self, goal):
-        if self._current_goal is not None:
+        util.info2("plan_waypoints")
+        group_name = goal.group_name
+        if self._current_goal[group_name] is not None:
             rospy.logwarn("Previous goal exists. Clear it first.")
             return
         self._plan_type = MoveitPlanner.PlanType.WAYPOINTS
-        self._current_goal = goal
-        group_name = goal.group_name
+        self._current_goal[group_name] = goal
         util.info("Generating waypoints plan for %s" % (group_name))
         
         current_pose = self._joint_groups[group_name].get_current_pose().pose
         waypoints = goal.waypoints #[current_pose] + 
-        self._current_plan, fraction = self._joint_groups[group_name].compute_cartesian_path(waypoints, 0.01, 0.0)
+        self._current_plan[group_name], fraction = self._joint_groups[group_name].compute_cartesian_path(waypoints, 0.01, 0.0)
         result = PlanWaypointsResult()
-        if len(self._current_plan.joint_trajectory.points) > 0:
+        if len(self._current_plan[group_name].joint_trajectory.points) > 0:
             util.success("A plan has been made (%d points). See it in RViz [check Show Trail and Show Collisions]"
-                         % len(self._current_plan.joint_trajectory.points))
+                         % len(self._current_plan[group_name].joint_trajectory.points))
             result.status = MoveitPlanner.Status.SUCCESS
             self._wayp_plan_server.set_succeeded(result)
         else:
@@ -171,13 +176,14 @@ class MoveitPlanner:
         
 
     def execute(self, goal):
+        util.info2("execute")
         group_name = goal.group_name
         util.info("Received executive action from client [type = %d]" % goal.action)
 
         result = ExecMoveitPlanResult()
-        if goal.action == ActionType.EXECUTE:
+        if goal.action == c.ActionType.EXECUTE:
             if self._plan_type == MoveitPlanner.PlanType.WAYPOINTS:
-                success = self._joint_groups[group_name].execute(self._current_plan)
+                success = self._joint_groups[group_name].execute(self._current_plan[group_name])
             else:
                 success = self._joint_groups[group_name].go(wait=goal.wait)
             if success:
@@ -192,7 +198,7 @@ class MoveitPlanner:
                                                   self._joint_groups[group_name].get_current_pose().pose))
             self._exec_server.set_succeeded(result)
                 
-        elif goal.action == ActionType.CANCEL:
+        elif goal.action == c.ActionType.CANCEL:
             self.cancel_goal(group_name)
             result.status = MoveitPlanner.Status.SUCCESS 
             self._exec_server.set_succeeded(result)
@@ -203,18 +209,21 @@ class MoveitPlanner:
             self._exec_server.set_aborted()
 
     def get_state(self, goal):
-        util.info("Getting state")
+        util.info2("get_state")
         group_name = goal.group_name
         result = GetStateResult()
+        # Fill in state attributes
         result.pose = self._joint_groups[group_name].get_current_pose().pose
         result.joint_values = self._joint_groups[group_name].get_current_joint_values()
+        result.has_goal = self._current_goal[group_name] is not None
+        result.has_plan = self._current_plan[group_name] is not None
         self._get_state_server.set_succeeded(result)
 
     def cancel_goal(self, group_name):
         self._joint_groups[group_name].clear_pose_targets()
         util.success("Goal for %s has been cleared" % group_name)
-        self._current_plan = None
-        self._current_goal = None
+        self._current_plan[group_name] = None
+        self._current_goal[group_name] = None
             
 
 if __name__ == "__main__":

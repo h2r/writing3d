@@ -11,7 +11,10 @@ from writing3d.moveit_planner import MoveitPlanner
 import writing3d.common as common
 from actionlib import SimpleGoalState
 
-RESOLUTION = 0.0004 #0.0001
+# 0.0004 pretty big
+# 0.0002 medium
+# 0.0001 small but not tiny
+RESOLUTION = 0.0002
 
 class StrokeWriter:
 
@@ -117,13 +120,9 @@ class StrokeWriter:
             self._print_waypoint_stats()
             
 
-    def _draw(self, method="together", done_cb=None, wait_time=10.0):
+    def draw(self, method="together"):
         """
         method can be "together" or "separate".
-
-        If "together", the parameter "done_cb" is called when stroke is finished.
-        If "separate", done_cb won't be called. You need to call "done" to check
-           if the drawing is finished.
         """
         # start planning
         if self._waypoints is None:
@@ -131,50 +130,14 @@ class StrokeWriter:
 
         self._status = StrokeWriter.Status.DRAWING
         if method == "together":
-            self._client.send_goal(self._arm, self._waypoints, done_cb=done_cb)
+            self._client.send_and_execute_goals(self._arm, [self._waypoints], wait=True)
         elif method == "separate":
-            self._client.send_and_execute_goals(self._arm, self._waypoints)
-            self._status == StrokeWriter.Status.COMPLETED
-        util.info("Waiting to draw...")
-        rospy.sleep(wait_time)
-
-    def _execute_waypoints_plan(self, status, result):
-
-        def executing(status, result):
-            self._client.get_state(self._arm, completed)
-        
-        def completed(status, result):
-            # Mark as completed when the arm actually moved near target pose.
-            # Otherwise, keep getting state (sleep for 1 sec).
-            if util.pose_close(self._waypoints[-1], result.pose, r=0.005):
-                self._status = StrokeWriter.Status.COMPLETED
-            else:
-                util.info("Expecting arm to move to")
-                util.info(str(self._waypoints[-1]))
-                util.info("Now at")
-                util.info(str(result.pose))
-                rospy.sleep(1)
-                self._client.get_state(self._arm, completed)
-            
-        if result.status == MoveitPlanner.Status.SUCCESS:
-            print("great! Execute now...")
-            self._client.execute_plan(self._arm,
-                                      done_cb=executing)
-            rospy.sleep(0.5)
-        else:
-            print("Oops. Something went wrong :(")
+            self._client.send_and_execute_goals(self._arm, self._waypoints, wait=True)
+        self._status = StrokeWriter.Status.COMPLETED
 
     def done(self):
         """Returns true if done drawing"""
         return self._status == StrokeWriter.Status.COMPLETED
-
-    def draw_by_waypoints(self, wait_time=10.0):
-        self._draw(method="together", done_cb=self._execute_waypoints_plan,
-                   wait_time=wait_time)
-
-    def draw_incrementally(self, wait_time=10.0):
-        self._draw(method="separate", done_cb=None,
-                   wait_time=wait_time)
 
 
 class CharacterWriter:
@@ -237,26 +200,25 @@ class CharacterWriter:
         if index < 0:
             # Draw entire character
             for i in range(len(self._strokes)):
-                self.write(i)
+                if self._client.is_healthy():
+                    self.write(i)
         else:
             if index > 0 and self._origin_pose is None:
                 util.warning("Origin pose unknown but not writing the first stroke."\
                              "Will treat current pose as origin.")
             # Wait till finish
             if len(self._strokes[index]) == 0:
-                sys.stdout.write("Empty stroke. Lifting arm...")
+                print("Empty stroke. Lifting arm...")
             else:
-                sys.stdout.write("Drawing stroke %d..." % index)
-            if method == "together":
-                self._writers[index].draw_by_waypoints(wait_time=10.0)
-            # elif method == "separate":
-            #     writer.draw_incrementally(wait_time=10.0)
+                print("Drawing stroke %d..." % index)
+            self._writers[index].draw(method=method)
             try:
                 while self._client.is_healthy() \
                       and not self._writers[index].done():
-                    sys.stdout.write(".")
                     rospy.sleep(1.0)
-                util.success("Done!")
+                util.success("Done. Client is %s" % ("up"
+                                                     if self._client.is_healthy()
+                                                     else "down!"))
             except (KeyboardInterrupt, rospy.ROSInternalException):
                 print("Interrupt...")
                 self._client.go_fail()
@@ -271,18 +233,25 @@ class CharacterWriter:
         ]
         self._client.send_and_execute_joint_space_goals_from_files(self._arm, goal_files)
 
+    def get_ready(self, pen_type="brush_small"):
+        ready = common.goal_file("touch_joint_pose_%s" % pen_type)
+        self._client.send_and_execute_joint_space_goals_from_files(self._arm, [ready])
+        
+
 if __name__ == "__main__":
     # Ad-hoc
     FILE = "../../data/stroke.npy"
     characters = np.load(FILE)
     util.info("Starting character writer...")
     try:
-        writer = CharacterWriter(characters[4], num_waypoints=10)
+        writer = CharacterWriter(characters[0], num_waypoints=10)
         util.warning("Dipping pen...")
         writer.dip_pen()
-        # util.warning("Begin writing...")
-        # rospy.sleep(2)
-        # writer.write()
+        util.warning("Getting ready...")
+        writer.get_ready()
+        util.warning("Begin writing...")
+        rospy.sleep(2)
+        writer.write()
     except KeyboardInterrupt:
         print("Terminating...")
     except Exception as ex:

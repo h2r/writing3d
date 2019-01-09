@@ -1,4 +1,5 @@
 import math
+import writing3d.common as common
 
 # Colors on terminal https://stackoverflow.com/a/287944/2893053
 class bcolors:
@@ -59,30 +60,36 @@ class bcolors:
     DISABLED = False
         
     @staticmethod
-    def s(color, content):
+    def s(color, content, bold=False):
         """Returns a string with color when shown on terminal.
         `color` is a constant in `bcolors` class."""
         if bcolors.DISABLED:
             return content
         else:
-            return color + content + bcolors.ResetAll
+            bold = bcolors.Bold if bold else ""
+            return bold + color + content + bcolors.ResetAll
 
 # String with colors
-def info(text):
-    print(bcolors.s(bcolors.Cyan, text))
+def info(text, debug_level=0, bold=False):
+    if common.DEBUG_LEVEL >= debug_level:
+        print(bcolors.s(bcolors.Cyan, text, bold=bold))
 
-def info2(text):
-    print(bcolors.s(bcolors.LightMagenta, text))
+def info2(text, debug_level=1):
+    # Used by default for debugging.
+    if common.DEBUG_LEVEL >= debug_level:
+        print(bcolors.s(bcolors.LightMagenta, text))
 
-def error(text):
-    print(bcolors.s(bcolors.Red, text))
+def error(text, debug_level=0):
+    if common.DEBUG_LEVEL >= debug_level:
+        print(bcolors.s(bcolors.Red, text))
 
-def warning(text):
-    print(bcolors.s(bcolors.Yellow, text))
+def warning(text, debug_level=0):
+    if common.DEBUG_LEVEL >= debug_level:
+        print(bcolors.s(bcolors.Yellow, text))
 
-def success(text):
-    print(bcolors.s(bcolors.Green, text))
-    
+def success(text, debug_level=0):
+    if common.DEBUG_LEVEL >= debug_level:
+        print(bcolors.s(bcolors.Green, text))
 
 # Printing
 def print_banner(text, ch='=', length=78, color=None):

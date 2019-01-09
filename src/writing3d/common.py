@@ -6,6 +6,8 @@ class ActionType:
     CANCEL = 1
     # PAUSE = 2
 
+DEBUG_LEVEL = 0
+
 _rospack = rospkg.RosPack()
 CFG_PATH = _rospack.get_path('writing3d')
 
