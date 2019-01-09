@@ -33,6 +33,8 @@ class StrokeWriter:
         stroke (np.array) array of waypoints (x, y, z, z2, altitude, azimuth)
         dimension (int) dimension of a character's image (default. 500 pixles)
         resolution (float) metric length for one pixel (default. 1cm)
+        origin_pose (list) joint-space pose for robot arm that corresponds to
+                           the origin of the character's image (not just stroke).
         """
         self._stroke = stroke
         self._dimension = dimension
@@ -64,6 +66,9 @@ class StrokeWriter:
     @property
     def origin_pose(self):
         return self._origin_pose
+
+    def set_origin_pose(self, pose):
+        self._origin_pose = pose
 
     def visualize(self):
         xvals = []
@@ -224,6 +229,12 @@ class CharacterWriter:
                 self._client.go_fail()
                 return
 
+    def update_origin_pose(self, pose):
+        """Updates origin pose for all stroke writers and self"""
+        self._origin_pose = copy.deepcopy(pose)
+        for w in self._writers:
+            w.set_origin_pose(copy.deepcopy(pose))
+
     def dip_pen(self):
         dip_ready = common.goal_file("dip_ready")
         dip_in = common.goal_file("dip_in")
@@ -236,6 +247,8 @@ class CharacterWriter:
     def get_ready(self, pen_type="brush_small"):
         ready = common.goal_file("touch_joint_pose_%s" % pen_type)
         self._client.send_and_execute_joint_space_goals_from_files(self._arm, [ready])
+        # change origin pose to be the ready pose
+        self.update_origin_pose(ready)
         
 
 if __name__ == "__main__":
