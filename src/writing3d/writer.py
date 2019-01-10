@@ -10,6 +10,8 @@ import util
 import copy
 import numpy as np
 import yaml
+import math
+from tf.transformations import quaternion_from_euler
 from writing3d.moveit_client import MoveitClient
 from writing3d.moveit_planner import MoveitPlanner
 import writing3d.common as common
@@ -19,6 +21,7 @@ from actionlib import SimpleGoalState
 # 0.0002 medium
 # 0.0001 small but not tiny
 RESOLUTION = 0.0002
+Z_RESOLUTION = 0.0002
 
 class StrokeWriter:
 
@@ -29,20 +32,28 @@ class StrokeWriter:
         DRAWING = 1
         COMPLETED = 2
 
-    def __init__(self, stroke, client,
-                 dimension=500, resolution=RESOLUTION,
-                 robot_name="movo", arm="right_arm",
-                 origin_pose=None, num_waypoints=5):
+    def __init__(self, stroke, client, dimension=500, resolution=RESOLUTION,
+                 robot_name="movo", arm="right_arm", origin_pose=None, num_waypoints=5,
+                 z_resolution=Z_RESOLUTION, z_min=Z_MIN, z_max=Z_MAX):
+                 
         """
         stroke (np.array) array of waypoints (x, y, z, z2, altitude, azimuth)
         dimension (int) dimension of a character's image (default. 500 pixles)
         resolution (float) metric length for one pixel (default. 1cm)
         origin_pose (Pose) Cartesian pose for robot arm that corresponds to
                            the origin of the character's image (not just stroke).
+        z_resolution (float) resolution in the vertical direction (in meters). If
+                             set to None, the stroke writer will only write in x, y.
+        z_min (float) the minimum displacement in z direction the end effector can move,
+                      so as to avoid bumping into the surface.
+        z_max (float) the maximum relative z-coordinate the end 
         """
         self._stroke = stroke
         self._dimension = dimension
         self._resolution = resolution
+        self._z_resolution = z_resolution
+        self._z_min = z_min
+        self._z_max = z_max
         self._waypoints = None
         self._draw_indx = 0  # for drawing method "separate"
         self._arm = arm
@@ -112,6 +123,12 @@ class StrokeWriter:
                 wy = -x * self._resolution
                 current_pose.position.x += wx
                 current_pose.position.y += wy
+                
+                if self._z_resolution is not None:
+                    current_pose.position.z += wz
+                    current_pose.orientation = quaternion_from_euler(math.radians(az),
+                                                                     math.radians(al),
+                                                                     0.0) # roll, pitch, yaw
                 waypoints.append(current_pose)
 
             # filter waypoints. There are too many
