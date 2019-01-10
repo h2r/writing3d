@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+#
+# Convention: If a public function is named with CamelCase, then it can possibly lead
+# to robot motion
 
 import matplotlib.pyplot as plt
 import sys
@@ -6,6 +9,7 @@ import rospy
 import util
 import copy
 import numpy as np
+import yaml
 from writing3d.moveit_client import MoveitClient
 from writing3d.moveit_planner import MoveitPlanner
 import writing3d.common as common
@@ -33,7 +37,7 @@ class StrokeWriter:
         stroke (np.array) array of waypoints (x, y, z, z2, altitude, azimuth)
         dimension (int) dimension of a character's image (default. 500 pixles)
         resolution (float) metric length for one pixel (default. 1cm)
-        origin_pose (list) joint-space pose for robot arm that corresponds to
+        origin_pose (Pose) Cartesian pose for robot arm that corresponds to
                            the origin of the character's image (not just stroke).
         """
         self._stroke = stroke
@@ -125,7 +129,7 @@ class StrokeWriter:
             self._print_waypoint_stats()
             
 
-    def draw(self, method="together"):
+    def Draw(self, method="together"):
         """
         method can be "together" or "separate".
         """
@@ -147,33 +151,39 @@ class StrokeWriter:
 
 class CharacterWriter:
 
+    
     def __init__(self, strokes, dimension=500, resolution=RESOLUTION,
                  robot_name="movo", arm="right_arm", num_waypoints=5,
                  blank_stroke_first=True):
         """
-        with blank_stroke_first set to True, the robot writes an empty
+        with `blank_stroke_first` set to True, the robot writes an empty
         stroke, which effectively lifts the arm before writing the actual
         first stroke.
         """
         self._client = MoveitClient(robot_name)
         self._dimension = dimension
         self._resolution = resolution
+        self._num_waypoints = num_waypoints
         self._strokes = strokes.tolist()
         if blank_stroke_first:
             self._strokes.insert(0, [])
+        self._origin_pose = None
         self._arm = arm
         self._robot_name = robot_name
-        self._origin_pose = None
+        self._writers = []
         self._client = MoveitClient(robot_name)
 
-        # Construct writers
-        self._writers = []
+    def init_writers(self):
+        """Initialize stroke writers. When this function is called, the robot arm should be in the
+        desired 'origin_pose' (see definition in StrokeWriter.__init__(). For example, this function
+        can be called after 'GetReady' which is supposed to move the robot arm to a pose suitable
+        to begin writing for a particular type of pen."""
         for i in range(len(self._strokes)):
             util.info("Initializing writer for stroke %d" % i)
             self._writers.append(StrokeWriter(self._strokes[i], self._client,
                                               dimension=self._dimension, resolution=self._resolution,
                                               robot_name=self._robot_name, arm=self._arm,
-                                              num_waypoints=num_waypoints, origin_pose=self._origin_pose))
+                                              num_waypoints=self._num_waypoints, origin_pose=self._origin_pose))
             self._origin_pose = self._writers[i].origin_pose
 
         # Print stats
@@ -199,9 +209,26 @@ class CharacterWriter:
         print("x range: %.3f (%.3f ~ %.3f)" % (np.ptp(xvals), np.min(xvals), np.max(xvals)))
         print("y range: %.3f (%.3f ~ %.3f)" % (np.ptp(yvals), np.min(yvals), np.max(yvals)))
         print("z range: %.3f (%.3f ~ %.3f)" % (np.ptp(zvals), np.min(zvals), np.max(zvals)))
-        
+                    
+    ### Actions that will lead to robot motion ###
+    def DipPen(self):
+        dip_high = common.goal_file("dip_high")
+        dip_low = common.goal_file("dip_low")
+        dip_move = common.goal_file("dip_move")
+        dip_retract = common.goal_file("dip_retract")
+        goal_files = [
+            dip_high, dip_low, dip_move, dip_high, dip_retract
+        ]
+        self._client.send_and_execute_joint_space_goals_from_files(self._arm, goal_files)
 
-    def write(self, index=-1, visualize=True, method="together"):
+    def GetReady(self, pen_type="brush_small"):
+        ready = common.goal_file("touch_joint_pose_%s" % pen_type)
+        self._client.send_and_execute_joint_space_goals_from_files(self._arm, [ready])
+
+    def Write(self, index=-1, visualize=True, method="together"):
+        if len(self._strokes) != len(self._writers):
+            raise Value("Incorrect number of stroke writers. Needs %d but got %d"
+                        % (len(self._strokes), len(self._writers)))
         if index < 0:
             # Draw entire character
             for i in range(len(self._strokes)):
@@ -216,7 +243,7 @@ class CharacterWriter:
                 print("Empty stroke. Lifting arm...")
             else:
                 print("Drawing stroke %d..." % index)
-            self._writers[index].draw(method=method)
+            self._writers[index].Draw(method=method)
             try:
                 while self._client.is_healthy() \
                       and not self._writers[index].done():
@@ -228,40 +255,25 @@ class CharacterWriter:
                 print("Interrupt...")
                 self._client.go_fail()
                 return
-
-    def update_origin_pose(self, pose):
-        """Updates origin pose for all stroke writers and self"""
-        self._origin_pose = copy.deepcopy(pose)
-        for w in self._writers:
-            w.set_origin_pose(copy.deepcopy(pose))
-
-    def dip_pen(self):
-        dip_ready = common.goal_file("dip_ready")
-        dip_in = common.goal_file("dip_in")
-        dip_move = common.goal_file("dip_move")
-        goal_files = [
-            dip_ready, dip_in, dip_move, dip_in, dip_ready
-        ]
-        self._client.send_and_execute_joint_space_goals_from_files(self._arm, goal_files)
-
-    def get_ready(self, pen_type="brush_small"):
-        ready = common.goal_file("touch_joint_pose_%s" % pen_type)
-        self._client.send_and_execute_joint_space_goals_from_files(self._arm, [ready])
-        # change origin pose to be the ready pose
-        self.update_origin_pose(ready)
+#-- End of CharacterWriter --#
         
 
-if __name__ == "__main__":
+def main():
     # Ad-hoc
     FILE = "../../data/stroke.npy"
     characters = np.load(FILE)
+
     util.info("Starting character writer...")
     try:
         writer = CharacterWriter(characters[0], num_waypoints=10)
         util.warning("Dipping pen...")
-        writer.dip_pen()
+        writer.DipPen()
+        print(writer._origin_pose)
         util.warning("Getting ready...")
-        writer.get_ready()
+        writer.GetReady()
+        writer.init_writers()
+        for w in writer._writers:
+            print(w.origin_pose)
         util.warning("Begin writing...")
         rospy.sleep(2)
         writer.write()
@@ -270,3 +282,6 @@ if __name__ == "__main__":
     except Exception as ex:
         print("Exception! %s" % ex)
 
+        
+if __name__ == "__main__":
+    main()
