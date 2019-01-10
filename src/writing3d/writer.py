@@ -233,7 +233,7 @@ class CharacterWriter:
             # Draw entire character
             for i in range(len(self._strokes)):
                 if self._client.is_healthy():
-                    self.write(i)
+                    self.Write(i)
         else:
             if index > 0 and self._origin_pose is None:
                 util.warning("Origin pose unknown but not writing the first stroke."\
@@ -265,18 +265,15 @@ def main():
 
     util.info("Starting character writer...")
     try:
-        writer = CharacterWriter(characters[0], num_waypoints=10)
+        writer = CharacterWriter(characters[4], num_waypoints=10)
         util.warning("Dipping pen...")
         writer.DipPen()
-        print(writer._origin_pose)
         util.warning("Getting ready...")
         writer.GetReady()
         writer.init_writers()
-        for w in writer._writers:
-            print(w.origin_pose)
         util.warning("Begin writing...")
         rospy.sleep(2)
-        writer.write()
+        writer.Write()
     except KeyboardInterrupt:
         print("Terminating...")
     except Exception as ex:
