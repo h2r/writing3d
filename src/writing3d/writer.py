@@ -29,7 +29,7 @@ class StrokeWriter:
         DRAWING = 1
         COMPLETED = 2
 
-    def __init__(self, stroke, client, dimension=500, pen=pens.BrushSmall,
+    def __init__(self, stroke, client, dimension=500, pen=pens.SmallBrush,
                  robot_name="movo", arm="right_arm", origin_pose=None, num_waypoints=5,
                  resolution=None, z_resolution=None, z_min=None, z_max=None):
                  
@@ -50,7 +50,8 @@ class StrokeWriter:
         self._stroke = stroke
         self._dimension = dimension
         if pen is not None:
-            pen_config = pen.get_config()
+            self._pen = pen
+            pen_config = self._pen.get_config()
             self._resolution = pen_config.get('RESOLUTION', None)
             self._z_resolution = pen_config.get('Z_RESOLUTION', None)
             self._z_min = pen_config.get('Z_MIN', None)
@@ -123,6 +124,8 @@ class StrokeWriter:
                 self._origin_pose = copy.deepcopy(state.pose)
 
             waypoints = []  # list of poses
+            
+            # x, y, z are in meters; al and az are degrees
             for x, y, z, z2, al, az in self._stroke:
                 # Map from image space to world space
                 current_pose = copy.deepcopy(self._origin_pose)
@@ -132,22 +135,24 @@ class StrokeWriter:
                 current_pose.position.y += wy
                 
                 if self._z_resolution is not None:
+                    # Force
                     wz = z * self._z_resolution
                     if wz > self._z_max or wz < self._z_min:
                         util.warning("Movement in z %.3f is out of range (%.3f ~ %.3f)"
                                      % (wz, self._z_min, self._z_max))
                         wz = max(min(wz, self._z_max), self._z_min)
                     current_pose.position.z += wz
-                    print(euler_from_quaternion([
-                        current_pose.orientation.x,
-                        current_pose.orientation.y,
-                        current_pose.orientation.z,
-                        current_pose.orientation.w,
-                    ]))
-                    print((math.radians(az), math.radians(al), math.radians(0)))
-                    # current_pose.orientation = geometry_msgs.msg.Quaternion(*quaternion_from_euler(math.radians(al),
-                    #                                                                                math.radians(az),
-                    #                                                                                0.0)) # roll, pitch, yaw
+
+                    # # Orientation; (unused for now)
+                    # current_orien = euler_from_quaternion([
+                    #     current_pose.orientation.x,
+                    #     current_pose.orientation.y,
+                    #     current_pose.orientation.z,
+                    #     current_pose.orientation.w,
+                    # ])
+                    # current_pose.orientation = geometry_msgs.msg.Quaternion(*quaternion_from_euler(current_orien[0] + math.radians(az),
+                    #                                                                                current_orien[1] + math.radians(al),
+                    #                                                                                current_orien[2])) # roll, pitch, yaw
                 waypoints.append(current_pose)
 
             # filter waypoints. There are too many
@@ -162,7 +167,8 @@ class StrokeWriter:
             self._waypoints.append(last_pose)
 
             # Print stats
-            self._print_waypoint_stats()
+            if common.DEBUG_LEVEL > 1:
+                self._print_waypoint_stats()
             
 
     def Draw(self, method="together"):
@@ -188,7 +194,7 @@ class StrokeWriter:
 class CharacterWriter:
 
     
-    def __init__(self, strokes, dimension=500, pen=pens.BrushSmall,
+    def __init__(self, strokes, dimension=500, pen=pens.SmallBrush,
                  robot_name="movo", arm="right_arm", num_waypoints=5,
                  blank_stroke_first=True):
         """
@@ -216,6 +222,7 @@ class CharacterWriter:
         # Print stroke stats
         self._print_stroke_stats()
 
+        
     def init_writers(self):
         """Initialize stroke writers. When this function is called, the robot arm should be in the
         desired 'origin_pose' (see definition in StrokeWriter.__init__(). For example, this function
@@ -230,29 +237,34 @@ class CharacterWriter:
             self._origin_pose = self._writers[i].origin_pose
 
         # Print stats
-        self._print_waypoint_stats()
+        if common.DEBUG_LEVEL > 0:
+            self._print_waypoint_stats()
 
     def visualize(self):
         for i in range(len(self._strokes)):
             self._writers[i].visualize()
         plt.show()
 
-    def _print_stroke_stats(self):
+    def _get_stroke_ranges(self):
         first_stroke_indx = 1 if self._blank_stroke_first else 0
         allmax = np.max(self._strokes[first_stroke_indx], axis=0)
         allmin = np.min(self._strokes[first_stroke_indx], axis=0)
         for stroke in self._strokes[first_stroke_indx+1:]:
             allmax = np.max(np.vstack((allmax, stroke)), axis=0)
             allmin = np.min(np.vstack((allmin, stroke)), axis=0)
-        
+        return allmin, allmax
+
+    def _print_stroke_stats(self):
+        allmin, allmax = self._get_stroke_ranges()
         print("========= Ranges (image-space) ========")
         print("x range: %.3f (%.3f ~ %.3f)" % (allmax[0] - allmin[0], allmin[0], allmax[0]))
         print("y range: %.3f (%.3f ~ %.3f)" % (allmax[1] - allmin[1], allmin[1], allmax[1]))
         print("z range: %.3f (%.3f ~ %.3f)" % (allmax[2] - allmin[2], allmin[2], allmax[2]))
-        print("al range: %.3f (%.3f ~ %.3f)" % (allmax[3] - allmin[3], allmin[3], allmax[3]))
-        print("az range: %.3f (%.3f ~ %.3f)" % (allmax[4] - allmin[4], allmin[4], allmax[4]))
+        print("al range: %.3f (%.3f ~ %.3f)" % (allmax[4] - allmin[4], allmin[4], allmax[4]))
+        print("az range: %.3f (%.3f ~ %.3f)" % (allmax[5] - allmin[5], allmin[5], allmax[5]))
 
         print("========= Ranges (world-space) ========")
+        print("------ Note: Influenced by pen! -------")
         resolution = self._pen.param("RESOLUTION")
         z_resolution = self._pen.param("Z_RESOLUTION")
         print("x range: %.3f (%.3f ~ %.3f)" % ((allmax[0] - allmin[0]) * resolution,
@@ -262,15 +274,15 @@ class CharacterWriter:
                                                allmin[1] * resolution,
                                                allmax[1] * resolution))
         if z_resolution is not None:
-            print("z range: %.3f (%.3f ~ %.3f)" % ((allmax[2] - allmin[2]) * z_resolution,
+            print("z range: %.5f (%.5f ~ %.5f)" % ((allmax[2] - allmin[2]) * z_resolution,
                                                    allmin[2] * z_resolution,
                                                    allmax[2] * z_resolution))
-            print("al range: %.3f (%.3f ~ %.3f)" % (math.radians(allmax[3] - allmin[3]),
-                                                    math.radians(allmin[3]),
-                                                    math.radians(allmax[3])))
-            print("az range: %.3f (%.3f ~ %.3f)" % (math.radians(allmax[4] - allmin[4]),
-                                                    math.radians(allmin[4]),
-                                                    math.radians(allmax[4])))
+            print("al range: %.3f (%.3f ~ %.3f)" % (allmax[4] - allmin[4],
+                                                    allmin[4],
+                                                    allmax[4]))
+            print("az range: %.3f (%.3f ~ %.3f)" % (allmax[5] - allmin[5],
+                                                    allmin[5],
+                                                    allmax[5]))
 
 
     def _print_waypoint_stats(self):
@@ -300,7 +312,7 @@ class CharacterWriter:
         ]
         self._client.send_and_execute_joint_space_goals_from_files(self._arm, goal_files)
 
-    def GetReady(self, pen_type="brush_small"):
+    def ReadyPose(self, pen_type="brush_small"):
         ready = common.goal_file("touch_joint_pose_%s" % pen_type)
         self._client.send_and_execute_joint_space_goals_from_files(self._arm, [ready])
 
@@ -344,15 +356,17 @@ def main():
 
     util.info("Starting character writer...")
     try:
-        writer = CharacterWriter(characters[0], num_waypoints=10)
-        # util.warning("Dipping pen...")
-        # writer.DipPen()
+        writer = CharacterWriter(characters[4], num_waypoints=10)
+        util.warning("Dipping pen...")
+        writer.DipPen()
         util.warning("Getting ready...")
-        writer.GetReady()
+        writer.ReadyPose()
         writer.init_writers()
         util.warning("Begin writing...")
         rospy.sleep(2)
-        # writer.Write()
+        writer.Write()
+        util.warning("Finished writing. Repositioning...")
+        writer.ReadyPose()
     except KeyboardInterrupt:
         print("Terminating...")
     except Exception as ex:
