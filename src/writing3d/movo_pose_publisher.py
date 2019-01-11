@@ -129,12 +129,12 @@ def main():
     vals = args.vals if args.vals is not None else []
 
     try:
-        if args.part.lower() == "left" and args.part.lower() == "right":
+        if args.part.lower() == "left" or args.part.lower() == "right":
             if args.cartesian:
                 msg = cartesian_vel(indices, vals)
             else:
                 msg = angular_vel(indices, vals)
-            pose_publisher(msg, args.side.lower(), rate=args.rate)
+            pose_publisher(msg, args.part.lower(), rate=args.rate)
         else:
             if args.pan is None and args.tilt is None:
                 raise ValueError("At least one of '--pan' or '--tilt' must be given.")

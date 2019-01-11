@@ -356,17 +356,17 @@ def main():
 
     util.info("Starting character writer...")
     try:
-        writer = CharacterWriter(characters[4], num_waypoints=10)
-        util.warning("Dipping pen...")
-        writer.DipPen()
-        util.warning("Getting ready...")
-        writer.ReadyPose()
+        writer = CharacterWriter(characters[0], num_waypoints=10)
+        # util.warning("Dipping pen...")
+        # writer.DipPen()
+        # util.warning("Getting ready...")
+        # writer.ReadyPose()
         writer.init_writers()
         util.warning("Begin writing...")
         rospy.sleep(2)
         writer.Write()
-        util.warning("Finished writing. Repositioning...")
-        writer.ReadyPose()
+        # util.warning("Finished writing. Repositioning...")
+        # writer.ReadyPose()
     except KeyboardInterrupt:
         print("Terminating...")
     except Exception as ex:
