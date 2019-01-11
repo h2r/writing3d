@@ -5,7 +5,7 @@
 
 import rospy
 from std_msgs.msg import Header
-from movo_msgs.msg import JacoAngularVelocityCmd7DOF, JacoCartesianVelocityCmd
+from movo_msgs.msg import JacoAngularVelocityCmd7DOF, JacoCartesianVelocityCmd, PVA, PanTiltCmd
 
 import argparse
 
@@ -68,30 +68,81 @@ def cartesian_vel(indices=[], new_vals=[]):
     return msg
 
 
-if __name__ == "__main__":
+def move_head(pan, tilt):
+    """pan and tilt are lists of floats. (potentially empty if no movement intended."""
+    global SEQ
+    
+    if len(pan) > 0 and len(pan) != 3:
+        raise ValueError("pan has three elements (p, v, a)!")
+    if len(tilt) > 0 and len(tilt) != 3:
+        raise ValueError("tilt has three elements (p, v, a)!")
+    # Note that as long as the velocity and acceleration are zero, the pan/tilt won't
+    # change from its current position.
+    msg = PanTiltCmd()
+    msg.header = Header()
+    msg.header.stamp = rospy.Time.now()
+    msg.header.seq = SEQ; SEQ += 1
+
+    if len(pan) > 0:
+        pva_pan = PVA()
+        pva_pan.pos_rad = pan[0]
+        pva_pan.vel_rps = pan[1]
+        pva_pan.acc_rps2 = pan[2]
+        msg.pan_cmd = pva_pan
+    if len(tilt) > 0:
+        pva_tilt = PVA()
+        pva_tilt.pos_rad = tilt[0]
+        pva_tilt.vel_rps = tilt[1]
+        pva_tilt.acc_rps2 = tilt[2]
+        msg.tilt_cmd = pva_tilt
+
+    pub = rospy.Publisher("movo/head/cmd", PanTiltCmd, queue_size=10, latch=True)
+    rospy.loginfo("Publishing %s" % msg)
+    pub.publish(msg)
+    print("Publishing and latching message. Press ctrl-C to terminate")
+    while not rospy.is_shutdown():
+        rospy.sleep(2)
+
+def main():
     parser = argparse.ArgumentParser(description='Publish velocity commands to MOVO arm joints.')
-    parser.add_argument("side", type=str, help="Which arm to move. 'left' or 'right'")
+    parser.add_argument("part", type=str, help="Which arm to move. 'left' or 'right' or 'head'")
     parser.add_argument('-i', '--indices', type=int, nargs='+',
                         help='Indices of joints, or indices of coordinates (if using cartesian).')
     parser.add_argument('-v', '--vals', type=float, nargs='+',
                         help='Values to set for the corresponding indices.')
     parser.add_argument('-c', '--cartesian', help='Cartesian velocity commands', action="store_true")
     parser.add_argument('-r', '--rate', type=float, help="Rate for publishing velocity command", default=1.0)
+    parser.add_argument('-p', '--pan', type=float, nargs='+',
+                        help='a list of 3 floats to control head pan: position (rad), velocity (rad/s)'\
+                        'and acceleration (rad/s^2)')
+    parser.add_argument('-t', '--tilt', type=float, nargs='+',
+                        help='a list of 3 floats to control head tilt: position (rad), velocity (rad/s)'\
+                        'and acceleration (rad/s^2)')
     args = parser.parse_args()
 
     rospy.init_node("movo_pose_node", anonymous=True)
 
-    if args.side.lower() != "left" and args.side.lower() != "right":
-        raise ValueError("side must be either left or right!")
+    if args.part.lower() != "left" and args.part.lower() != "right" and args.part.lower() != "head":
+        raise ValueError("part must be either left or right or head!")
 
     indices = args.indices if args.indices is not None else []
     vals = args.vals if args.vals is not None else []
 
     try:
-        if args.cartesian:
-            msg = cartesian_vel(indices, vals)
+        if args.part.lower() == "left" and args.part.lower() == "right":
+            if args.cartesian:
+                msg = cartesian_vel(indices, vals)
+            else:
+                msg = angular_vel(indices, vals)
+            pose_publisher(msg, args.side.lower(), rate=args.rate)
         else:
-            msg = angular_vel(indices, vals)
-        pose_publisher(msg, args.side.lower(), rate=args.rate)
+            if args.pan is None and args.tilt is None:
+                raise ValueError("At least one of '--pan' or '--tilt' must be given.")
+            move_head(args.pan if args.pan is not None else [],
+                      args.tilt if args.tilt is not None else [])
     except rospy.ROSInterruptException:
         pass
+
+
+if __name__ == "__main__":
+    main()
