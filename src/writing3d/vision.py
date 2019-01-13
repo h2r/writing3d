@@ -24,41 +24,41 @@ import sensor_msgs.msg
 import cv2
 import copy
 import writing3d.util as util
-from writing3d.cv_util import GUI
+from writing3d.cv_util import TkGui
 import writing3d.common as common
 import argparse
 from cv_bridge import CvBridge, CvBridgeError
 
 common.DEBUG_LEVEL = 2
 
-class WritingGUI:
+# class WritingGUI:
 
-    def __init__(self, winname="writing_gui"):
-        self._gui = GUI()
-        self._winname = winname
+#     def __init__(self, winname="writing_gui"):
+#         self._gui = GUI()
+#         self._winname = winname
 
-    def __del__(self):
-        util.info2("GUI destroyed!", debug_level=2)
-        cv2.destroyAllWindows()    
+#     def __del__(self):
+#         util.info2("GUI destroyed!", debug_level=2)
+#         cv2.destroyAllWindows()    
 
-    def init(self):
-        cv2.namedWindow(self._winname)
-        cv2.moveWindow(self._winname, 100, 200)
-        self._gui.register_mouse_click_circle(self._winname,
-                                              radius=5, color=(232, 179, 64))
+#     def init(self):
+#         cv2.namedWindow(self._winname)
+#         cv2.moveWindow(self._winname, 100, 200)
+#         self._gui.register_mouse_click_circle(self._winname,
+#                                               radius=5, color=(232, 179, 64))
 
-    @property
-    def window_name(self):
-        return self._winname
+#     @property
+#     def window_name(self):
+#         return self._winname
 
-    def show_image(self, img):
-        self._gui.set_image(img)
+#     def show_image(self, img):
+#         self._gui.set_image(img)
         
-        while True:
-            cv2.imshow(self._winname, img)
-            k = cv2.waitKey(10) & 0xFF
-            if k == 27:
-                break
+#         while True:
+#             cv2.imshow(self._winname, img)
+#             k = cv2.waitKey(10) & 0xFF
+#             if k == 27:
+#                 break
 
 
 class MovoKinectInterface:
@@ -72,13 +72,12 @@ class MovoKinectInterface:
         """
         Returns an image taken from the kinect as an opencv image.
         Blocking call; Returns only when an image is obtained.
-
-        The returned image has 3 channels, blue-green-red
         """
         
         def get_picture(msg):
-            # The taken image should have 3 channels, b-g-r.
-            self._image_taken = self._cv_bridge.imgmsg_to_cv2(msg, msg.encoding)
+            # The taken image is BGR but we need RGB for Tk.
+            self._image_taken = cv2.cvtColor(self._cv_bridge.imgmsg_to_cv2(msg, msg.encoding),
+                                             cv2.COLOR_BGR2RGB)
 
         util.info("Taking picture with Kinect")
         rospy.Subscriber("movo_camera/color/image_color_rect",
@@ -94,11 +93,12 @@ class CharacterExtractor:
     pass
 
 def main():
-    gui = WritingGUI()
+    gui = TkGui() #WritingGUI()
     gui.init()
     kinect = MovoKinectInterface()
     img = kinect.take_picture()
     gui.show_image(img)
+    gui.spin()
 
 
 if __name__ == "__main__":
