@@ -11,24 +11,32 @@ import argparse
 
 SEQ = 1000
 
-def pose_publisher(msg, arm="right", rate=1):
+
+def pose_publisher(msg, arm="right", rate=1, duration=float('inf')):
+    """
+    duration (float) the duration (seconds) of time the message will be published.
+    """
+    global SEQ
+    msg.header = Header()
+    msg.header.stamp = rospy.Time.now()
+    msg.header.seq = SEQ; SEQ += 1
+    
     if isinstance(msg, JacoCartesianVelocityCmd):
-        pub = rospy.Publisher("movo/%s_arm/cartesian_vel_cmd" % arm, JacoCartesianVelocityCmd, queue_size=10)
+        pub = rospy.Publisher("movo/%s_arm/cartesian_vel_cmd" % arm, JacoCartesianVelocityCmd, queue_size=10, latch=True)
     else:
-        pub = rospy.Publisher("movo/%s_arm/angular_vel_cmd" % arm, JacoAngularVelocityCmd7DOF, queue_size=10)
+        pub = rospy.Publisher("movo/%s_arm/angular_vel_cmd" % arm, JacoAngularVelocityCmd7DOF, queue_size=10, latch=True)
     r = rospy.Rate(rate)
-    while not rospy.is_shutdown():
+    start = rospy.Time.now()
+    d = rospy.Duration(duration) if duration < float('inf') else None
+    while (duration >= float('inf')\
+           or (duration < float('inf') and rospy.Time.now() - start <= d))\
+          and not rospy.is_shutdown():
         rospy.loginfo("Publishing %s" % msg)
         pub.publish(msg)
         r.sleep()
 
 def angular_vel(indices=[], new_vals=[]):
-    global SEQ
     msg = JacoAngularVelocityCmd7DOF()
-    msg.header = Header()
-    msg.header.stamp = rospy.Time.now()
-    msg.header.seq = SEQ; SEQ += 1
-
     vals = [0]*7
     if len(indices) > 0 and len(new_vals) > 0 and len(indices) == len(new_vals):
         for indx, i in enumerate(indices):
@@ -48,12 +56,6 @@ def cartesian_vel(indices=[], new_vals=[]):
     # there are:
     #
     # x, y, z, theta_x, theta_y, theta_z
-    global SEQ
-    msg = JacoCartesianVelocityCmd()
-    msg.header = Header()
-    msg.header.stamp = rospy.Time.now()
-    msg.header.seq = SEQ; SEQ += 1
-
     vals = [0] * 6
     if len(indices) > 0 and len(new_vals) > 0 and len(indices) == len(new_vals):
         for indx, i in enumerate(indices):
@@ -118,6 +120,8 @@ def main():
     parser.add_argument('-t', '--tilt', type=float, nargs='+',
                         help='a list of 3 floats to control head tilt: position (rad), velocity (rad/s)'\
                         'and acceleration (rad/s^2)')
+    parser.add_argument('-d', '--duration', type=float, help="the duration (seconds) of time the message"\
+                        "will be published.", default=float('inf'))
     args = parser.parse_args()
 
     rospy.init_node("movo_pose_node", anonymous=True)
@@ -134,7 +138,7 @@ def main():
                 msg = cartesian_vel(indices, vals)
             else:
                 msg = angular_vel(indices, vals)
-            pose_publisher(msg, args.part.lower(), rate=args.rate)
+            pose_publisher(msg, args.part.lower(), rate=args.rate, duration=args.duration)
         else:
             if args.pan is None and args.tilt is None:
                 raise ValueError("At least one of '--pan' or '--tilt' must be given.")
