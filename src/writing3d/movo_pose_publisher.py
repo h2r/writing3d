@@ -25,15 +25,14 @@ def pose_publisher(msg, arm="right", rate=1, duration=float('inf')):
         pub = rospy.Publisher("movo/%s_arm/cartesian_vel_cmd" % arm, JacoCartesianVelocityCmd, queue_size=10, latch=True)
     else:
         pub = rospy.Publisher("movo/%s_arm/angular_vel_cmd" % arm, JacoAngularVelocityCmd7DOF, queue_size=10, latch=True)
-    r = rospy.Rate(rate)
+    rospy.loginfo("Publishing %s" % msg)
+    pub.publish(msg)
     start = rospy.Time.now()
     d = rospy.Duration(duration) if duration < float('inf') else None
     while (duration >= float('inf')\
            or (duration < float('inf') and rospy.Time.now() - start <= d))\
           and not rospy.is_shutdown():
-        rospy.loginfo("Publishing %s" % msg)
-        pub.publish(msg)
-        r.sleep()
+        rospy.sleep(0.001)
 
 def angular_vel(indices=[], new_vals=[]):
     msg = JacoAngularVelocityCmd7DOF()

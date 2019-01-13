@@ -17,8 +17,11 @@ from writing3d.moveit_client import MoveitClient
 from writing3d.moveit_planner import MoveitPlanner
 import writing3d.common as common
 import writing3d.pens as pens
+import writing3d.movo_pose_publisher as movo_pp
 from actionlib import SimpleGoalState
+import argparse
 
+common.DEBUG_LEVEL = 2
 
 class StrokeWriter:
 
@@ -194,13 +197,17 @@ class StrokeWriter:
 class CharacterWriter:
 
     
-    def __init__(self, strokes, dimension=500, pen=pens.SmallBrush,
+    def __init__(self, strokes, dimension=500, pen=pens.Pen,
                  robot_name="movo", arm="right_arm", num_waypoints=5,
-                 blank_stroke_first=True):
+                 blank_stroke_first=True, retract_after_stroke=False,
+                 retract_scale=1):
         """
         with `blank_stroke_first` set to True, the robot writes an empty
         stroke, which effectively lifts the arm before writing the actual
         first stroke.
+
+        with `retract_after_stroke` set to True, the robot retracts its arm
+        after writing every stroke (moves the arm away from)
         """
         self._client = MoveitClient(robot_name)
         self._dimension = dimension
@@ -208,6 +215,8 @@ class CharacterWriter:
         self._num_waypoints = num_waypoints
         self._strokes = strokes.tolist()
         self._blank_stroke_first = blank_stroke_first
+        self._retract_after_stroke = retract_after_stroke
+        self._retract_scale = retract_scale
         if self._blank_stroke_first:
             self._strokes.insert(0, [])
         self._origin_pose = None
@@ -226,7 +235,7 @@ class CharacterWriter:
     def init_writers(self):
         """Initialize stroke writers. When this function is called, the robot arm should be in the
         desired 'origin_pose' (see definition in StrokeWriter.__init__(). For example, this function
-        can be called after 'GetReady' which is supposed to move the robot arm to a pose suitable
+        can be called after 'ReadyPose' which is supposed to move the robot arm to a pose suitable
         to begin writing for a particular type of pen."""
         for i in range(len(self._strokes)):
             util.info("Initializing writer for stroke %d" % i)
@@ -240,10 +249,44 @@ class CharacterWriter:
         if common.DEBUG_LEVEL > 0:
             self._print_waypoint_stats()
 
-    def visualize(self):
+            
+    @property
+    def arm_side(self):
+        return self._arm.split("_")[0]
+
+    
+    def visualize_strokes(self):
+        """Visualize each stroke"""
         for i in range(len(self._strokes)):
             self._writers[i].visualize()
         plt.show()
+
+    def print_character(self, res=50):
+        """res means the side width of the text area you want to print. It shouldn't be large (above 50)
+        since that would not be readable. This is of course not accurate."""
+        img = np.zeros((res, res), dtype=np.int32)
+        ratio = float(self._dimension) / float(res)
+        for stroke in self._strokes:
+            for p in stroke:
+                x, y = int(p[0]/ratio), int(p[1]/ratio)
+                img[x,y] = 1
+        last_point = (int(self._strokes[-1][-1][0] / ratio),
+                      int(self._strokes[-1][-1][1] / ratio))
+        img = img.transpose()
+        started_content = False
+        for r in range(img.shape[0]):
+            if not started_content:
+                if 1 not in img[r]:
+                    continue # skip blank lines at first
+            if r > last_point[0]:
+                continue # skip blank lines at the end
+            for c in range(img.shape[1]):
+                if img[r,c] == 0:
+                    sys.stdout.write(" ")
+                else:
+                    started_content = True
+                    sys.stdout.write("-")
+            sys.stdout.write("\n")
 
     def _get_stroke_ranges(self):
         first_stroke_indx = 1 if self._blank_stroke_first else 0
@@ -312,9 +355,19 @@ class CharacterWriter:
         ]
         self._client.send_and_execute_joint_space_goals_from_files(self._arm, goal_files)
 
-    def ReadyPose(self, pen_type="brush_small"):
-        ready = common.goal_file("touch_joint_pose_%s" % pen_type)
+    def ReadyPose(self):
+        ready = self._pen.touch_pose()
         self._client.send_and_execute_joint_space_goals_from_files(self._arm, [ready])
+
+    def _Retract(self):
+        """We don't want to delay when retracting. So we will move the arm directly"""
+        util.info2("Retracting...", debug_level=2)
+        # move joints 3 and 5
+        if self._retract_scale < 1.0 or self._retract_scale > 2.0:
+            raise ValueError("Invalid retract scale! Only accept float between 1.0 and 2.0 (inclusive). Got %s" % str(self._retract_scale))
+        msg = movo_pp.angular_vel(indices=[3,5],
+                                  new_vals=[-3.0, 5.0])
+        movo_pp.pose_publisher(msg, arm=self.arm_side, rate=15, duration=2*self._retract_scale)  # will directly move joints
 
     def Write(self, index=-1, visualize=True, method="together"):
         if len(self._strokes) != len(self._writers):
@@ -325,6 +378,8 @@ class CharacterWriter:
             for i in range(len(self._strokes)):
                 if self._client.is_healthy():
                     self.Write(i)
+                    if self._retract_after_stroke:
+                        self._Retract()
         else:
             if index > 0 and self._origin_pose is None:
                 util.warning("Origin pose unknown but not writing the first stroke."\
@@ -347,33 +402,59 @@ class CharacterWriter:
                 self._client.go_fail()
                 return
 #-- End of CharacterWriter --#
-        
+
+def write_characters(characters, retract_after_stroke=True, retract_scale=1):
+    """Each character is an array of strokes, which is an array of waypoints (x,y,z,z2,al,az)
+    Currently, the characters are all written with respect to the same origin pose. So they
+    will overlap. A human assistant should replace the paper once a character is written"""
+
+    for i, character in enumerate(characters):
+        util.info("Starting character writer...")
+        try:
+            writer = CharacterWriter(character, pen=pens.SmallBrush, num_waypoints=10,
+                                     retract_after_stroke=retract_after_stroke,
+                                     retract_scale=retract_scale)
+            # Print character
+            writer.print_character(res=40)
+            util.warning("Dipping pen...")
+            writer.DipPen()
+            util.warning("Getting ready...")
+            writer.ReadyPose()
+            writer.init_writers()
+            util.warning("Begin writing...")
+            rospy.sleep(2)
+            writer.Write()
+            util.warning("Finished writing. Repositioning...")
+            writer.ReadyPose()
+        except KeyboardInterrupt:
+            print("Terminating...")
+        except Exception as ex:
+            print("Exception! %s" % ex)
+            import traceback
+            traceback.print_exc()
 
 def main():
     # Ad-hoc
+    parser = argparse.ArgumentParser(description='Let MOVO write characters')
+    parser.add_argument("path", type=str, help="Path to a .npy file that contains characters"\
+                        "data (each character is list of strokes, each of which is a list of waypoints).")
+    parser.add_argument("index", type=int, help="index of the character you want to write."\
+                        "If negative, all characters will be written.")
+    parser.add_argument("--continuous", help="The robot will not retract after writing every stroke.",
+                        action="store_true")
+    parser.add_argument("--retract-scale", type=float, help="How much you want to retract the arm after writing"\
+                        "every stroke. Acceptable values: float between 1 to 2", default=1.0)
+    args = parser.parse_args()
     FILE = "../../data/stroke.npy"
-    characters = np.load(FILE)
-
-    util.info("Starting character writer...")
-    try:
-        writer = CharacterWriter(characters[0], num_waypoints=10)
-        # util.warning("Dipping pen...")
-        # writer.DipPen()
-        # util.warning("Getting ready...")
-        # writer.ReadyPose()
-        writer.init_writers()
-        util.warning("Begin writing...")
-        rospy.sleep(2)
-        writer.Write()
-        # util.warning("Finished writing. Repositioning...")
-        # writer.ReadyPose()
-    except KeyboardInterrupt:
-        print("Terminating...")
-    except Exception as ex:
-        print("Exception! %s" % ex)
-        import traceback
-        traceback.print_exc()
-
+    characters = np.load(args.path)
+    if args.index < 0:
+        write_characters(characters, retract_after_stroke=(not args.continuous),
+                         retract_scale=args.retract_scale)
+    else:
+        if args.index >= len(characters):
+            raise ValueError("Index out of bound. Valid range: 0 ~ %d" % (len(characters)))
+        write_characters([characters[args.index]], retract_after_stroke=(not args.continuous),
+                         retract_scale=args.retract_scale)
         
 if __name__ == "__main__":
     main()

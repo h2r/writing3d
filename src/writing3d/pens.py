@@ -11,6 +11,7 @@
 # to obtain and easy to break.
 import math
 from pprint import pprint
+import writing3d.common as common
 
 # Generic pen
 class Pen:
@@ -21,6 +22,14 @@ class Pen:
         "Z_MAX": 0.05,
         "Z_LIFT": 0.05,
     }
+
+    @classmethod
+    def touch_pose(cls):
+        return None
+
+    @classmethod
+    def retract_pose(cls):
+        return None
     
     @classmethod
     def param(cls, name):
@@ -44,9 +53,24 @@ class SmallBrush(Pen):
         "Z_LIFT": 0.03,
     }
 
+    @classmethod
+    def touch_pose(cls):
+        return common.goal_file("touch_joint_pose_brush_small")
+
+    @classmethod
+    def retract_pose(cls):
+        return common.goal_file("retract_joint_pose_brush_small")
+
 class Sharpe:
     CONFIG = {
         "RESOLUTION": 0.0002,
         "Z_LIFT": 0.03,
     }
 
+    @classmethod
+    def touch_pose(cls):
+        return common.goal_file("touch_joint_pose_sharpe")
+
+    @classmethod
+    def retract_pose(cls):
+        return common.goal_file("retract_joint_pose_sharpe")

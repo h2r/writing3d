@@ -25,10 +25,10 @@ from writing3d.msg import PlanMoveEEAction, PlanMoveEEGoal, PlanMoveEEResult, Pl
     PlanWaypointsAction, PlanWaypointsGoal, PlanWaypointsResult, PlanWaypointsFeedback, \
     GetStateAction, GetStateGoal, GetStateResult, GetStateFeedback
 
-import writing3d.common as c
+import writing3d.common as common
 
 
-c.DEBUG_LEVEL = 1
+common.DEBUG_LEVEL = 1
     
 
 class MoveitPlanner:
