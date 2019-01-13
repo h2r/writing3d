@@ -91,6 +91,20 @@ def success(text, debug_level=0):
     if common.DEBUG_LEVEL >= debug_level:
         print(bcolors.s(bcolors.Green, text))
 
+def rgb_to_hex(rgb):
+    r,g,b = rgb
+    return '#%02x%02x%02x' % (int(r), int(g), int(b))
+
+def hex_to_rgb(hx):
+    """hx is a string, begins with #. ASSUME len(hx)=7."""
+    if len(hx) != 7:
+        raise ValueError("Hex must be #------")
+    hx = hx[1:]  # omit the '#'
+    r = int('0x'+hx[:2], 16)
+    g = int('0x'+hx[2:4], 16)
+    b = int('0x'+hx[4:6], 16)
+    return (r,g,b)
+
 # Printing
 def print_banner(text, ch='=', length=78, color=None):
     """Source: http://code.activestate.com/recipes/306863-printing-a-bannertitle-line/"""

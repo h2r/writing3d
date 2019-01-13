@@ -31,34 +31,20 @@ from cv_bridge import CvBridge, CvBridgeError
 
 common.DEBUG_LEVEL = 2
 
-# class WritingGUI:
+class WritingGui(TkGui):
 
-#     def __init__(self, winname="writing_gui"):
-#         self._gui = GUI()
-#         self._winname = winname
+    def __init__(self):
+        super(WritingGui, self).__init__()
 
-#     def __del__(self):
-#         util.info2("GUI destroyed!", debug_level=2)
-#         cv2.destroyAllWindows()    
-
-#     def init(self):
-#         cv2.namedWindow(self._winname)
-#         cv2.moveWindow(self._winname, 100, 200)
-#         self._gui.register_mouse_click_circle(self._winname,
-#                                               radius=5, color=(232, 179, 64))
-
-#     @property
-#     def window_name(self):
-#         return self._winname
-
-#     def show_image(self, img):
-#         self._gui.set_image(img)
+    def _cond_choose_origin(self, event, x, y):
+        return self.last_n_keys(1) == "o"
+            
         
-#         while True:
-#             cv2.imshow(self._winname, img)
-#             k = cv2.waitKey(10) & 0xFF
-#             if k == 27:
-#                 break
+
+    def init(self):
+        super(WritingGui, self).init()
+        self.register_mouse_click_circle(self._cond_choose_origin,
+                                         radius=5, color=(64, 179, 239))
 
 
 class MovoKinectInterface:
@@ -93,7 +79,7 @@ class CharacterExtractor:
     pass
 
 def main():
-    gui = TkGui() #WritingGUI()
+    gui = WritingGui()
     gui.init()
     kinect = MovoKinectInterface()
     img = kinect.take_picture()
