@@ -376,7 +376,8 @@ class WritingGui(TkGui):
                     x, y = p[0], p[1]
                     # Add 'double' thickness to this stroke (based on z)
                     z = p[2] * 2
-                    img_th_display[y-z:y+z,x-z:x+z] = 128
+                    img_th_display[int(round(y-z)):int(round(y+z)),
+                                   int(round(x-z)):int(round(x+z))] = 128
                     
         size = self.show_image("char_extract", img_th_display,
                                loc=(self._width, size[1]), anchor='ne', scale=0.3,
