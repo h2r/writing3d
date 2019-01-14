@@ -13,8 +13,8 @@ import yaml
 import math
 import geometry_msgs.msg
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
-from writing3d.moveit_client import MoveitClient
-from writing3d.moveit_planner import MoveitPlanner
+from writing3d.robot.moveit_client import MoveitClient
+from writing3d.robot.moveit_planner import MoveitPlanner
 import writing3d.common as common
 import writing3d.pens as pens
 import writing3d.movo_pose_publisher as movo_pp

@@ -16,7 +16,7 @@ from writing3d.msg import PlanMoveEEAction, PlanMoveEEGoal, PlanMoveEEResult, Pl
     PlanWaypointsAction, PlanWaypointsGoal, PlanWaypointsResult, PlanWaypointsFeedback,\
     GetStateAction, GetStateGoal, GetStateResult, GetStateFeedback
 from writing3d.common import ActionType
-from writing3d.moveit_planner import MoveitPlanner
+from writing3d.robot.moveit_planner import MoveitPlanner
 
 import argparse
 

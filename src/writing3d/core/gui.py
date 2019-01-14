@@ -23,7 +23,7 @@ import argparse
 import sensor_msgs.msg
 import writing3d.common as common
 import writing3d.util as util
-from writing3d.vision import MovoKinectInterface
+from writing3d.robot.movo_vision import MovoKinectInterface
 import Tkinter as tk
 from PIL import Image, ImageTk
 
@@ -438,7 +438,7 @@ class WritingGui(TkGui):
 
 
 def main():
-    FILE = "../../data/stroke.npy"
+    FILE = "../../../data/stroke.npy"
     characters = np.load(FILE)
     gui = WritingGui(hd=True)
     gui.init()

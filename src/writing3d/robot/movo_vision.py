@@ -25,7 +25,6 @@ import sensor_msgs.msg
 import cv2
 import copy
 import writing3d.util as util
-from writing3d.cv_util import TkGui
 import writing3d.common as common
 import argparse
 from cv_bridge import CvBridge, CvBridgeError
@@ -59,7 +58,3 @@ class MovoKinectInterface:
         img = copy.deepcopy(self._image_taken)
         self._image_taken = None
         return img
-            
-
-class CharacterExtractor:
-    pass
