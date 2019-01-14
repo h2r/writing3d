@@ -14,8 +14,7 @@
 #
 # The process of determination of the character window
 # 1. set 4 points
-# 2. set resolution
-# 3. remove perspective
+# 2. remove perspective
 
 import cv2
 import numpy as np
@@ -24,8 +23,10 @@ import argparse
 import sensor_msgs.msg
 import writing3d.common as common
 import writing3d.util as util
+from writing3d.vision import MovoKinectInterface
 import Tkinter as tk
 from PIL import Image, ImageTk
+
 
 common.DEBUG_LEVEL = 2
 
@@ -237,7 +238,7 @@ class WritingGui(TkGui):
     POINT_CIRCLE_RADIUS = 5
     KINECT_IMAGE_NAME = "kinect_view"
 
-    def __init__(self, character_dim=500):
+    def __init__(self, character_dim=500, hd=True):
         super(WritingGui, self).__init__()
         self._top_left = None  # (x, y) for top_left
         self._bottom_right = None  # (x, y) for bottom_right
@@ -247,8 +248,16 @@ class WritingGui(TkGui):
         self._cdim = character_dim
         self._writing_character = None
         self._writing_character_img = None
+        self._stroke_images = []
         # counter clock wise
         self._corners_persp = None
+        # Scaling
+        if hd:
+            self._bg_scale = 0.7
+            self._box_scale = 0.5
+        else:
+            self._bg_scale = 1.0
+            self._box_scale = 0.3
 
     def set_writing_character(self, char):
         """Set the writing character. A char is a list of strokes which
@@ -258,7 +267,19 @@ class WritingGui(TkGui):
 
     def show_kinect_image(self, img):
         self.show_image(WritingGui.KINECT_IMAGE_NAME, img, background=True,
-                        loc=(0,0))
+                        loc=(0,0), scale=self._bg_scale)
+
+    def show_stroke_image(self, img):
+        """All stroke images will be shown one next to each other on the top
+        of the screen. The `img` should be of size (self._cdim, self._cdim).
+        And since `img` is a stroke image, it is binary, where 0 = background
+        and 1 = ink."""
+        self._stroke_images.append(img)
+        img_display = np.copy(img)
+        img_display[img_display==1] = 255
+        self.show_image("stroke-%d" % len(self._stroke_images),
+                        img_display, loc=(img_display.shape[0]*(self._box_scale/2.0)*(len(self._stroke_images)-1), 0),
+                        scale=self._box_scale/2.0, interpolation=cv2.INTER_NEAREST)
 
     def kinect_image_shown(self):
         return WritingGui.KINECT_IMAGE_NAME in self._images
@@ -278,32 +299,34 @@ class WritingGui(TkGui):
 
     def _store_top_left(self, item):
         x, y, _, _ = self._canvas.coords(item)
-        self._top_left = np.array([x + WritingGui.POINT_CIRCLE_RADIUS,
-                                   y + WritingGui.POINT_CIRCLE_RADIUS])
+        self._top_left = np.array([x/self._bg_scale + WritingGui.POINT_CIRCLE_RADIUS,
+                                   y/self._bg_scale + WritingGui.POINT_CIRCLE_RADIUS])
         self._check_and_draw()
     def _store_top_right(self, item):
         x, y, _, _ = self._canvas.coords(item)
-        self._top_right = np.array([x + WritingGui.POINT_CIRCLE_RADIUS,
-                                    y + WritingGui.POINT_CIRCLE_RADIUS])
+        self._top_right = np.array([x/self._bg_scale + WritingGui.POINT_CIRCLE_RADIUS,
+                                    y/self._bg_scale + WritingGui.POINT_CIRCLE_RADIUS])
         self._check_and_draw()
     def _store_bottom_left(self, item):
         x, y, _, _ = self._canvas.coords(item)
-        self._bottom_left = np.array([x + WritingGui.POINT_CIRCLE_RADIUS,
-                                      y + WritingGui.POINT_CIRCLE_RADIUS])
+        self._bottom_left = np.array([x/self._bg_scale + WritingGui.POINT_CIRCLE_RADIUS,
+                                      y/self._bg_scale + WritingGui.POINT_CIRCLE_RADIUS])
         self._check_and_draw()
     def _store_bottom_right(self, item):
         x, y, _, _ = self._canvas.coords(item)
-        self._bottom_right = np.array([x + WritingGui.POINT_CIRCLE_RADIUS,
-                                       y + WritingGui.POINT_CIRCLE_RADIUS])
+        self._bottom_right = np.array([x/self._bg_scale + WritingGui.POINT_CIRCLE_RADIUS,
+                                       y/self._bg_scale + WritingGui.POINT_CIRCLE_RADIUS])
         self._check_and_draw()
         
     def _draw_dash(self, name, start, end, color=(102, 204, 255)):
+        """`start` and `end` are points on the original image, which may have been scaled
+        for display. So we need to adjust here too when displaying the dashed line"""
         if name in self._items:
             self._canvas.delete(self._items[name])
-        self._items[name] = self._canvas.create_line(start[0],
-                                                     start[1],
-                                                     end[0],
-                                                     end[1],
+        self._items[name] = self._canvas.create_line(start[0]*self._bg_scale,
+                                                     start[1]*self._bg_scale,
+                                                     end[0]*self._bg_scale,
+                                                     end[1]*self._bg_scale,
                                                      fill=util.rgb_to_hex(color),
                                                      width=2.0,
                                                      dash=(4,4))
@@ -320,7 +343,7 @@ class WritingGui(TkGui):
         if self._top_left is not None and self._top_right is not None\
            and self._bottom_left is not None and self._bottom_right is not None:
             img_np, drawn_size = self._remove_perspective_show_result()
-            img_char = self._extract_character_show_result(img_np, drawn_size)
+            img_char, _ = self._extract_character_show_result(img_np, drawn_size)
 
 
     def _remove_perspective_show_result(self):
@@ -335,7 +358,7 @@ class WritingGui(TkGui):
         img_src = self._images[WritingGui.KINECT_IMAGE_NAME][0]
         img_dst = cv2.warpPerspective(img_src, h, (self._cdim, self._cdim))
         size = self.show_image(WritingGui.KINECT_IMAGE_NAME + "_np", img_dst,
-                               loc=(self._width, 0), anchor='ne', scale=0.3)
+                               loc=(self._width, 0), anchor='ne', scale=self._box_scale)
         return img_dst, size
 
 
@@ -367,6 +390,7 @@ class WritingGui(TkGui):
         # Display
         img_th_display = np.copy(img_th)
         img_th_display[img_th_display==1] = 255
+        img_th_display[img_th_display==0] = 100
         
         if self._writing_character is not None:
             # show the character on top of the currently extracted image. Resize if necessary
@@ -377,10 +401,10 @@ class WritingGui(TkGui):
                     # Add 'double' thickness to this stroke (based on z)
                     z = p[2] * 2
                     img_th_display[int(round(y-z)):int(round(y+z)),
-                                   int(round(x-z)):int(round(x+z))] = 128
+                                   int(round(x-z)):int(round(x+z))] = 0
                     
         size = self.show_image("char_extract", img_th_display,
-                               loc=(self._width, size[1]), anchor='ne', scale=0.3,
+                               loc=(self._width, size[1]), anchor='ne', scale=self._box_scale,
                                interpolation=cv2.INTER_NEAREST)
         return img_th, size
 
@@ -414,12 +438,13 @@ class WritingGui(TkGui):
 
 
 def main():
-    characters = np.load("../../data/stroke.npy")
-    gui = WritingGui()
+    FILE = "../../data/stroke.npy"
+    characters = np.load(FILE)
+    gui = WritingGui(hd=True)
     gui.init()
     gui.set_writing_character(characters[0])
-    # kinect = MovoKinectInterface()
-    img = np.load("kinect.npy") #kinect.take_picture()
+    kinect = MovoKinectInterface()
+    img = kinect.take_picture(hd=True)
     gui.show_kinect_image(img)
     gui.spin()
 
