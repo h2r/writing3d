@@ -81,10 +81,10 @@ class TkGui(object):
     """For all register callback functions,  it will be called if
     `cond_func(event, x, y)` evaluates to True. The shapes (or intermediate
     objects necessary) drawn as a result of the callback will be stored in
-    self._shapes[event_name]"""
+    self._shapes[event_name]. `done_cb` is called when the shape is drawn."""
     def register_mouse_click_circle(self, event_name, cond_func, button_num='1',
                                     radius=50, color=(255, 0, 0), loc_func=None,
-                                    clear_previous=False):
+                                    clear_previous=False, done_cb=None):
         """Draw a circle at the location of mouse click, or some other
         specified location, determined by `loc_func` (if not None):
             loc_func(mouse_x, mouse_y)  --> (x, y)
@@ -98,7 +98,8 @@ class TkGui(object):
             'color': util.rgb_to_hex(color),
             'loc_func': loc_func,
             'cond_func': cond_func,
-            'clear_previous': clear_previous
+            'clear_previous': clear_previous,
+            'done_cb': done_cb
         }
         if event_name in self._shapes:
             raise ValueError("Event %s already exists" % event_name)
@@ -119,11 +120,14 @@ class TkGui(object):
                 self._shapes[param['event_name']].pop(-1)
             self._shapes[param['event_name']].append(self._canvas.create_oval(x-r, y-r, x+r, y+r, fill=param['color'],
                                                                               outline=""))
+            if param['done_cb'] is not None:
+                param['done_cb']()
 
+            
             
     def register_mouse_click_line_segment(self, event_name, cond_func, button_num='1',
                                           width=1.0, dash=None, loc_func=None, color=(255, 0, 0),
-                                          clear_previous=False):
+                                          clear_previous=False, done_cb=None):
         """
         Draw a line segment with two mouse clicks. The underlying event callback
         is for mouse click. So it is up to the user to handle the "first point"
@@ -141,7 +145,8 @@ class TkGui(object):
             'width': width,
             'loc_func': loc_func,
             'cond_func': cond_func,
-            'clear_previous': clear_previous
+            'clear_previous': clear_previous,
+            'done_cb': done_cb
         }
         if event_name in self._shapes:
             raise ValueError("Event %s already exists" % event_name)
@@ -188,3 +193,5 @@ class TkGui(object):
                                                                              fill=param['color'],
                                                                              dash=param['dash'],
                                                                              width=param['width'])
+            if param['done_cb'] is not None:
+                param['done_cb']()
