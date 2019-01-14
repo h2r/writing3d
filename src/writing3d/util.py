@@ -166,3 +166,16 @@ def point_along(p, v2, t=1):
     """returns the end point of moving from p along the direction
     of v2 for t times the magnitutde of v2."""
     return p + (v2[1] - v2[0]) * t
+
+def intersect(l1, l2):
+    """Returns the point of intersection for the given two lines.
+    A line is a tuple (p, v) where p = (x,y) and v = (p1, p2), i.e.
+    two points."""
+    p1, v1 = l1; x1, y1 = p1; dx1, dy1 = v1[1] - v1[0]
+    p2, v2 = l2; x2, y2 = p2; dx2, dy2 = v2[1] - v2[0]
+
+    A = np.array([[dx1, -dx2], [dy1, -dy2]])
+    b = np.array([x2 - x1, y2 - y1])
+    t, k = np.linalg.solve(A, b)
+    p_int = point_along(p1, v1, t=t)
+    return p_int    
