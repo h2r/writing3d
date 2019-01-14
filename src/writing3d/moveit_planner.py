@@ -181,7 +181,7 @@ class MoveitPlanner:
         util.info("Received executive action from client [type = %d]" % goal.action)
 
         result = ExecMoveitPlanResult()
-        if goal.action == c.ActionType.EXECUTE:
+        if goal.action == common.ActionType.EXECUTE:
             if self._plan_type == MoveitPlanner.PlanType.WAYPOINTS:
                 success = self._joint_groups[group_name].execute(self._current_plan[group_name])
             else:
@@ -198,7 +198,7 @@ class MoveitPlanner:
                                                   self._joint_groups[group_name].get_current_pose().pose))
             self._exec_server.set_succeeded(result)
                 
-        elif goal.action == c.ActionType.CANCEL:
+        elif goal.action == common.ActionType.CANCEL:
             self.cancel_goal(group_name)
             result.status = MoveitPlanner.Status.SUCCESS 
             self._exec_server.set_succeeded(result)

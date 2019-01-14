@@ -40,7 +40,7 @@ class MovoKinectInterface:
         self._cv_bridge = CvBridge()
         rospy.init_node('movo_kinect_interface', anonymous=True)
     
-    def take_picture(self):
+    def take_picture(self, hd=True):
         """
         Returns an image taken from the kinect as an opencv image.
         Blocking call; Returns only when an image is obtained.
@@ -52,8 +52,8 @@ class MovoKinectInterface:
                                              cv2.COLOR_BGR2RGB)
 
         util.info("Taking picture with Kinect")
-        rospy.Subscriber("movo_camera/color/image_color_rect",
-                         sensor_msgs.msg.Image, get_picture)
+        topic = "movo_camera/hd/image_color" if hd else "movo_camera/color/image_color_rect"
+        rospy.Subscriber(topic, sensor_msgs.msg.Image, get_picture)
         while self._image_taken is None:
             rospy.sleep(0.5)
         img = copy.deepcopy(self._image_taken)
