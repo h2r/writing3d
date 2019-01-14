@@ -1,5 +1,7 @@
 import math
 import writing3d.common as common
+import numpy as np
+import copy
 
 # Colors on terminal https://stackoverflow.com/a/287944/2893053
 class bcolors:
@@ -152,3 +154,15 @@ def pose_close(p1, p2, r=0.005):
                      + (p1.position.y - p2.position.y)**2
                      + (p1.position.z - p2.position.z)**2)
     return dist <= 0.005
+
+# A vector is a tuple or array of two points (start, end), each
+# is N-dimensional np.array.
+def unit_vector(v):
+    """Return a vector that is a unit vector in the direction
+    of `v`. Does not change origin."""
+    return np.array([v[0], v[0] + (v[1] - v[0]) / np.linalg.norm(v[1] - v[0])])
+
+def point_along(p, v2, t=1):
+    """returns the end point of moving from p along the direction
+    of v2 for t times the magnitutde of v2."""
+    return p + (v2[1] - v2[0]) * t

@@ -17,7 +17,7 @@
 import cv2
 import writing3d.util as util
 import Tkinter as tk
-import Image, ImageTk
+from PIL import Image, ImageTk
 
 
 class TkGui(object):
@@ -33,8 +33,10 @@ class TkGui(object):
     
     def init(self):
         self._root = tk.Tk()
-        self._canvas = tk.Canvas(self._root, width=20,
-                                 height=20)
+        self._width = 0
+        self._height = 0
+        self._canvas = tk.Canvas(self._root, width=self._width,
+                                 height=self._height)
         self._canvas.config(bg='black')
         # pack the canvas into a frame/form
         self._canvas.pack(fill=tk.BOTH)
@@ -47,8 +49,10 @@ class TkGui(object):
         self._current_img = img
         self._current_img_tk = ImageTk.PhotoImage(image=Image.fromarray(self._current_img))
         self._canvas.create_image(0, 0, anchor='nw', image=self._current_img_tk)
-        self._canvas.config(width=self._current_img.shape[1],
-                            height=self._current_img.shape[0])
+        self._width = self._current_img.shape[1]
+        self._height = self._current_img.shape[0]
+        self._canvas.config(width=self._width,
+                            height=self._height)
 
     def spin(self):
         if self._root:
@@ -81,7 +85,8 @@ class TkGui(object):
     """For all register callback functions,  it will be called if
     `cond_func(event, x, y)` evaluates to True. The shapes (or intermediate
     objects necessary) drawn as a result of the callback will be stored in
-    self._shapes[event_name]. `done_cb` is called when the shape is drawn."""
+    self._shapes[event_name]. `done_cb` is called when the shape is drawn,
+    with the drawn shape item id as the argument."""
     def register_mouse_click_circle(self, event_name, cond_func, button_num='1',
                                     radius=50, color=(255, 0, 0), loc_func=None,
                                     clear_previous=False, done_cb=None):
@@ -121,7 +126,7 @@ class TkGui(object):
             self._shapes[param['event_name']].append(self._canvas.create_oval(x-r, y-r, x+r, y+r, fill=param['color'],
                                                                               outline=""))
             if param['done_cb'] is not None:
-                param['done_cb']()
+                param['done_cb'](self._shapes[param['event_name']][-1])
 
             
             
@@ -130,9 +135,7 @@ class TkGui(object):
                                           clear_previous=False, done_cb=None):
         """
         Draw a line segment with two mouse clicks. The underlying event callback
-        is for mouse click. So it is up to the user to handle the "first point"
-        and "second point" clicks (the cond_func will be called twice, on each
-        click, as a signal).
+        is for mouse click. 
 
         `loc_func` is similar to that in register_mouse_click_circle:
             loc_func(x, y) --> x, y
@@ -194,4 +197,4 @@ class TkGui(object):
                                                                              dash=param['dash'],
                                                                              width=param['width'])
             if param['done_cb'] is not None:
-                param['done_cb']()
+                param['done_cb'](self._shapes[param['event_name']][-1])
