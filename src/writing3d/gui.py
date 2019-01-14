@@ -365,7 +365,6 @@ class WritingGui(TkGui):
         img_th = 1 - img_th  # invert
 
         # Display
-        util.info("Displaying character")
         img_th_display = np.copy(img_th)
         img_th_display[img_th_display==1] = 255
         
