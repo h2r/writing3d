@@ -195,7 +195,6 @@ class StrokeWriter:
 
 
 class CharacterWriter:
-
     
     def __init__(self, strokes, dimension=500, pen=pens.Pen,
                  robot_name="movo", arm="right_arm", num_waypoints=5,

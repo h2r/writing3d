@@ -245,8 +245,16 @@ class WritingGui(TkGui):
         self._bottom_left = None
         self._items = {}
         self._cdim = character_dim
+        self._writing_character = None
+        self._writing_character_img = None
         # counter clock wise
         self._corners_persp = None
+
+    def set_writing_character(self, char):
+        """Set the writing character. A char is a list of strokes which
+        is a list of waypoints x,y,z,z2,al,az. The dimension of the
+        character should be equal to self._cdim"""
+        self._writing_character = char
 
     def show_kinect_image(self, img):
         self.show_image(WritingGui.KINECT_IMAGE_NAME, img, background=True,
@@ -333,7 +341,8 @@ class WritingGui(TkGui):
 
     def _extract_character_show_result(self, img, size):
         """`img` should have no perspective. `size` is the size that `img` is shown
-        on the screen (it's probably different from `img`'s dimensions.
+        on the screen (it's probably different from `img`'s dimensions, which is
+        equal to (self._cdim, self._cdim). ) 
 
         Reference: https://docs.opencv.org/3.2.0/d7/d4d/tutorial_py_thresholding.html.
 
@@ -354,8 +363,22 @@ class WritingGui(TkGui):
         img_th[0:corner_width,
             img_th.shape[1]-corner_height:img_th.shape[1]].fill(1)
         img_th = 1 - img_th  # invert
+
+        # Display
+        util.info("Displaying character")
         img_th_display = np.copy(img_th)
         img_th_display[img_th_display==1] = 255
+        
+        if self._writing_character is not None:
+            # show the character on top of the currently extracted image. Resize if necessary
+            self._writing_character_img = np.zeros((self._cdim, self._cdim))
+            for stroke in self._writing_character:
+                for p in stroke:
+                    x, y = p[0], p[1]
+                    # Add 'double' thickness to this stroke (based on z)
+                    z = p[2] * 2
+                    img_th_display[y-z:y+z,x-z:x+z] = 128
+                    
         size = self.show_image("char_extract", img_th_display,
                                loc=(self._width, size[1]), anchor='ne', scale=0.3,
                                interpolation=cv2.INTER_NEAREST)
@@ -391,8 +414,10 @@ class WritingGui(TkGui):
 
 
 def main():
+    characters = np.load("../../data/stroke.npy")
     gui = WritingGui()
     gui.init()
+    gui.set_writing_character(characters[0])
     # kinect = MovoKinectInterface()
     img = np.load("kinect.npy") #kinect.take_picture()
     gui.show_kinect_image(img)
