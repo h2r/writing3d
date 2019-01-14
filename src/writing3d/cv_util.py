@@ -4,8 +4,14 @@
 #   sudo apt-get install python-imaging-tk
 #
 # References: https://stackoverflow.com/questions/19030579/tkinter-not-found
+# From https://docs.python.org/2/library/tkinter.html:
+#   the add in bind() is optional, either '' or '+'. Passing an empty string
+#   denotes that this binding is to replace any other bindings that this event
+#   is associated with. Passing a '+' means that this function is to be added
+#   to the list of functions bound to this event type.
 #
 # On Python 2, import Tkinter. On python 3, import tkinter
+# author: Kaiyu Zheng
 
 
 import cv2
@@ -22,6 +28,7 @@ class TkGui(object):
         self._current_img = None  # current image (np.array)
         self._current_img_tk = None  # current image (PhotoImage)
         self._last_10_keys = []
+        self._shapes = {}
 
     
     def init(self):
@@ -72,10 +79,12 @@ class TkGui(object):
             
 
     """For all register callback functions,  it will be called if
-    `cond_func(event, x, y)` evaluates to True"""
-    def register_mouse_click_circle(self, cond_func, button_num='1',
-                                    radius=50, color=(255, 0, 0),
-                                    thickness=-1, loc_func=None):
+    `cond_func(event, x, y)` evaluates to True. The shapes (or intermediate
+    objects necessary) drawn as a result of the callback will be stored in
+    self._shapes[event_name]"""
+    def register_mouse_click_circle(self, event_name, cond_func, button_num='1',
+                                    radius=50, color=(255, 0, 0), loc_func=None,
+                                    clear_previous=False):
         """Draw a circle at the location of mouse click, or some other
         specified location, determined by `loc_func` (if not None):
             loc_func(mouse_x, mouse_y)  --> (x, y)
@@ -84,85 +93,96 @@ class TkGui(object):
         """
         util.info2("Registering mouse click circle", debug_level=1)
         param = {
+            'event_name': event_name,
             'radius': radius,
             'color': util.rgb_to_hex(color),
-            'thickness': thickness,
             'loc_func': loc_func,
-            'cond_func': cond_func
+            'cond_func': cond_func,
+            'clear_previous': clear_previous
         }
+        if event_name in self._shapes:
+            raise ValueError("Event %s already exists" % event_name)
+        self._shapes[event_name] = []
         self._canvas.bind("<Button-%s>" % button_num,
-                          lambda event: self._mouse_click_circle(event, param))
+                          lambda event: self._mouse_click_circle(event, param),
+                          add="+")
 
     def _mouse_click_circle(self, event, param):
-        if self._current_img is None:
-            return
         x, y = event.x, event.y
         if param['cond_func'](event, x, y):
             if param['loc_func'] is not None:
                 x, y = param['loc_func'](x, y)
 
             r = param['radius']
-            self._canvas.create_oval(x-r, y-r, x+r, y+r, fill=param['color'],
-                                     outline="")
+            if param['clear_previous'] and len(self._shapes[param['event_name']]) > 0:
+                self._canvas.delete(self._shapes[param['event_name']][-1])
+                self._shapes[param['event_name']].pop(-1)
+            self._shapes[param['event_name']].append(self._canvas.create_oval(x-r, y-r, x+r, y+r, fill=param['color'],
+                                                                              outline=""))
+
             
+    def register_mouse_click_line_segment(self, event_name, cond_func, button_num='1',
+                                          width=1.0, dash=None, loc_func=None, color=(255, 0, 0),
+                                          clear_previous=False):
+        """
+        Draw a line segment with two mouse clicks. The underlying event callback
+        is for mouse click. So it is up to the user to handle the "first point"
+        and "second point" clicks (the cond_func will be called twice, on each
+        click, as a signal).
 
+        `loc_func` is similar to that in register_mouse_click_circle:
+            loc_func(x, y) --> x, y
+        """
+        util.info2("Registering mouse click line segment", debug_level=1)
+        param = {
+            'event_name': event_name,
+            'color': util.rgb_to_hex(color),
+            'dash': dash,
+            'width': width,
+            'loc_func': loc_func,
+            'cond_func': cond_func,
+            'clear_previous': clear_previous
+        }
+        if event_name in self._shapes:
+            raise ValueError("Event %s already exists" % event_name)
+        self._shapes[event_name] = []
+        self._canvas.bind("<Button-%s>" % button_num,
+                          lambda event: self._mouse_click_line_segment(event, param),
+                          add="+")
+        
 
+    def _mouse_click_line_segment(self, event, param):
+        x, y = event.x, event.y
 
+        if not param['cond_func'](event, x, y):
+            return
+        # See if we want to clear the previous line
+        if len(self._shapes[param['event_name']]) > 0 \
+           and self._canvas.type(self._shapes[param['event_name']][-1]) == "line" \
+           and param['clear_previous']:
+            self._canvas.delete(self._shapes[param['event_name']][-1])
+            self._shapes[param['event_name']].pop(-1)
 
-
-# class GUI:
-
-#     """GUI based on TKinter. Drawing is done using OpenCV."""
-
-#     def __init__(self):
-#         self._current_img = None  # This image is a
-#         self._last_10_keys = []
-
-#         self._config = {}
-
-#     def set_image(self, img):
-#         """`img` is an opencv image (i.e. numpy array)"""
-#         self._current_img = img
-
-#     @property
-#     def current_image(self):
-#         return self._current_img
-
-#     """For all register callback functions,  it will be called if
-#     `cond_func(event, x, y)` evaluates to True"""
-#     def register_mouse_click_circle(self, winname, cond_func,
-#                                     radius=50, color=(255, 0, 0),
-#                                     thickness=-1, loc_func=None):
-#         """Draw a circle at the location of mouse click, or some other
-#         specified location, determined by `loc_func` (if not None):
-#             loc_func(mouse_x, mouse_y)  --> (x, y)
-#         """
-#         util.info2("Registering mouse click circle", debug_level=1)
-#         cv2.setMouseCallback(winname, self._mouse_click_circle,
-#                              {
-#                                  'radius': radius,
-#                                  'color': color,
-#                                  'thickness': thickness,
-#                                  'loc_func': loc_func,
-#                                  'cond_func': cond_func
-                                 
-#                              })
-
-#     def _mouse_click_circle(self, event, x, y, flags, param):
-#         if self._current_img is None:
-#             return
-#         if param['cond_func'](event, x, y):
-#             if param['loc_func'] is not None:
-#                 x, y = param['loc_func'](x, y)
-#             cv2.circle(self._current_img, (x, y),
-#                        param['radius'], param['color'], param['thickness'])
-
-
-#     def last_n_keys(self, n=1):
-#         """Return a list of n keys that were most recently pressed. Most-recent first."""
-#         if n <= 0 or n > len(self._last_10_keys):
-#             util.warning("Do not know key! (got: %d; max_length: %d)"
-#                          % (n, len(self._last_10_keys)))
-#             return None
-#         return list(reversed(self._last_10_keys[-n:-1]))
-
+        if len(self._shapes[param['event_name']]) == 0 \
+           or self._canvas.type(self._shapes[param['event_name']][-1]) == "line":
+            self._shapes[param['event_name']].append(None)
+         
+        if self._shapes[param['event_name']][-1] is None:
+            # First click
+            # Draw a circle first
+            r = param['width'] / 2
+            self._shapes[param['event_name']][-1] = self._canvas.create_oval(x-r, y-r, x+r, y+r,
+                                                                             fill=param['color'],
+                                                                             outline="")
+        elif self._canvas.type(self._shapes[param['event_name']][-1]) == "oval":
+            # Second click
+            # first click pos
+            circ_coords = self._canvas.coords(self._shapes[param['event_name']][-1])
+            x0 = circ_coords[0] + param['width']/2
+            y0 = circ_coords[1] + param['width']/2
+            # Delete the circle drawn previousy
+            self._canvas.delete(self._shapes[param['event_name']][-1])
+            self._shapes[param['event_name']][-1] = self._canvas.create_line(x0, y0, x, y,
+                                                                             fill=param['color'],
+                                                                             dash=param['dash'],
+                                                                             width=param['width'])

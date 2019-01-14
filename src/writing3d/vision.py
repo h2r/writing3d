@@ -35,16 +35,65 @@ class WritingGui(TkGui):
 
     def __init__(self):
         super(WritingGui, self).__init__()
+        self._origin = None  # (x, y) for origin
+        self._x_axis = None  # direction vector for pos x
+        self._y_axis = None  # direction vector for pos y
 
-    def _cond_choose_origin(self, event, x, y):
-        return self.last_n_keys(1) == "o"
+    def _cond_set_origin(self, event, x, y):
+        ok = self._current_img is not None \
+             and self.last_n_keys(1) == "o"
+        if ok:
+            self._origin = (x, y)
+        return ok
+
+    def _update_axis_coords(self, name, x, y):
+        axis = getattr(self, "_%s_axis" % name)
+        if axis is not None:
+            if len(axis) == 1:
+                # this is the second check
+                axis.append((x,y))
+            elif len(axis) == 2:
+                # this means we are clearing the previous line
+                # and drawing a new one
+                axis = [(x,y)]
+                import pdb; pdb.set_trace()
+            else:
+                raise ValueError("Unexpected state. x_axis: %s" % axis)
+        else:
+            # We just clicked for the first time.
+            axis = [(x,y)]
             
-        
+    def _cond_set_x_axis(self, event, x, y):
+        ok = self._current_img is not None\
+             and self.last_n_keys(1) == "x"
+        if ok:
+            self._update_axis_coords("x", x, y)
+        return ok
+
+    def _cond_set_y_axis(self, event, x, y):
+        ok = self._current_img is not None\
+             and self.last_n_keys(1) == "y"
+        if ok:
+            self._update_axis_coords("y", x, y)
+        return ok
+    
 
     def init(self):
         super(WritingGui, self).init()
-        self.register_mouse_click_circle(self._cond_choose_origin,
-                                         radius=5, color=(64, 179, 239))
+        self.register_mouse_click_circle("set_origin",
+                                         self._cond_set_origin,
+                                         radius=5, color=(64, 179, 239),
+                                         clear_previous=True)
+
+        self.register_mouse_click_line_segment("set_x_axis",
+                                               self._cond_set_x_axis,
+                                               width=5, color=(255, 0, 0),
+                                               clear_previous=True)
+        
+        self.register_mouse_click_line_segment("set_y_axis",
+                                               self._cond_set_y_axis,
+                                               width=5, color=(10, 245, 10),
+                                               clear_previous=True)
 
 
 class MovoKinectInterface:
