@@ -51,16 +51,18 @@ class TkGui(object):
         self._canvas.pack(fill=tk.BOTH)
         self._root.bind("<Key>", self._key_pressed)
     
-    def show_image(self, name, img, loc=(0,0), anchor='nw', scale=1, background=False):
+    def show_image(self, name, img, loc=(0,0), anchor='nw',
+                   scale=1, background=False, interpolation=cv2.INTER_LINEAR):
         """
         Given an image `img` as np.array (RGB), display the image on Tk window.
-        If name already exists, will override the old one.
+        If name already exists, will override the old one. Returns the size of
+        the drawn image.
         """
         if name in self._images:
             self._canvas.delete(self._images[name][0])
         self._images[name] = [img, None, -1]  # image (original size), img_tk (shown), item_id
         img = cv2.resize(img, (int(round(img.shape[1]*scale)),
-                               int(round(img.shape[0]*scale))))
+                               int(round(img.shape[0]*scale))), interpolation=interpolation)
         self._images[name][1] = ImageTk.PhotoImage(image=Image.fromarray(img))
         self._images[name][2] = self._canvas.create_image(loc[0], loc[1],
                                                           anchor=anchor, image=self._images[name][1])
@@ -69,6 +71,7 @@ class TkGui(object):
             self._height = img.shape[0]
             self._canvas.config(width=self._width,
                                 height=self._height)
+        return self._images[name][1].width(), self._images[name][1].height()
 
     def remove_image(self, name):
         if name not in self._images:
@@ -308,7 +311,8 @@ class WritingGui(TkGui):
             self._draw_dash("right_line", self._bottom_right, self._top_right)
         if self._top_left is not None and self._top_right is not None\
            and self._bottom_left is not None and self._bottom_right is not None:
-            self._remove_perspective_show_result()
+            img_np, drawn_size = self._remove_perspective_show_result()
+            img_char = self._extract_character_show_result(img_np, drawn_size)
 
 
     def _remove_perspective_show_result(self):
@@ -322,8 +326,40 @@ class WritingGui(TkGui):
                                                  [0, self._cdim]]))
         img_src = self._images[WritingGui.KINECT_IMAGE_NAME][0]
         img_dst = cv2.warpPerspective(img_src, h, (self._cdim, self._cdim))
-        self.show_image(WritingGui.KINECT_IMAGE_NAME + "_np", img_dst,
-                        loc=(self._width, 0), anchor='ne', scale=0.3)
+        size = self.show_image(WritingGui.KINECT_IMAGE_NAME + "_np", img_dst,
+                               loc=(self._width, 0), anchor='ne', scale=0.3)
+        return img_dst, size
+
+
+    def _extract_character_show_result(self, img, size):
+        """`img` should have no perspective. `size` is the size that `img` is shown
+        on the screen (it's probably different from `img`'s dimensions.
+
+        Reference: https://docs.opencv.org/3.2.0/d7/d4d/tutorial_py_thresholding.html.
+
+        The result will be a binary image with 0 = background and 1 = ink."""
+        # Perform Otsu thresholding after Gaussian filtering
+        img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+        blur = cv2.GaussianBlur(img,(5,5),0)
+        _, img_th = cv2.threshold(blur, 0, 1, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        # Remove corners and invert
+        corner_width = int(img_th.shape[0] * 0.15)
+        corner_height = int(img_th.shape[1] * 0.15)
+        img_th[0:corner_width,
+            0:corner_height].fill(1)
+        img_th[img_th.shape[0]-corner_width:img_th.shape[0],
+            0:corner_height].fill(1)
+        img_th[img_th.shape[0]-corner_width:img_th.shape[0],
+            img_th.shape[1]-corner_height:img_th.shape[1]].fill(1)
+        img_th[0:corner_width,
+            img_th.shape[1]-corner_height:img_th.shape[1]].fill(1)
+        img_th = 1 - img_th  # invert
+        img_th_display = np.copy(img_th)
+        img_th_display[img_th_display==1] = 255
+        size = self.show_image("char_extract", img_th_display,
+                               loc=(self._width, size[1]), anchor='ne', scale=0.3,
+                               interpolation=cv2.INTER_NEAREST)
+        return img_th, size
 
     
 
