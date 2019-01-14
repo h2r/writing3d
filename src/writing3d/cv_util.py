@@ -166,7 +166,9 @@ class TkGui(object):
         if len(self._shapes[param['event_name']]) == 0 \
            or self._canvas.type(self._shapes[param['event_name']][-1]) == "line":
             self._shapes[param['event_name']].append(None)
-         
+
+        if param['loc_func'] is not None:
+            x, y = param['loc_func'](x, y)
         if self._shapes[param['event_name']][-1] is None:
             # First click
             # Draw a circle first
