@@ -28,10 +28,13 @@ def pose_publisher(msg, arm="right", rate=1, duration=float('inf')):
     rospy.loginfo("Publishing %s" % msg)
     pub.publish(msg)
     start = rospy.Time.now()
-    d = rospy.Duration(duration) if duration < float('inf') else None
+    d = rospy.Duration(duration) if duration < float('inf') else None    
     while (duration >= float('inf')\
            or (duration < float('inf') and rospy.Time.now() - start <= d))\
           and not rospy.is_shutdown():
+        msg.header.stamp = rospy.Time.now()
+        msg.header.seq = SEQ; SEQ += 1
+        pub.publish(msg)
         rospy.sleep(0.001)
 
 def angular_vel(indices=[], new_vals=[]):
