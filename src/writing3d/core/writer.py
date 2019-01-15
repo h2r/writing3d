@@ -158,8 +158,11 @@ class StrokeWriter:
                     #                                                                                current_orien[2])) # roll, pitch, yaw
                 waypoints.append(current_pose)
 
+            self._waypoints = waypoints
+
             # filter waypoints. There are too many
-            self._waypoints = util.downsample(waypoints, self._num_waypoints)
+            if self._num_waypoints > 0:
+                self._waypoints = util.downsample(waypoints, self._num_waypoints)
             
             # At the end of the stroke, lift the pen.
             if len(waypoints) > 0:
@@ -354,6 +357,10 @@ class CharacterWriter:
         ]
         self._client.send_and_execute_joint_space_goals_from_files(self._arm, goal_files)
 
+    def DipRetract(self):
+        dip_retract = common.goal_file("dip_retract")
+        self._client.send_and_execute_joint_space_goals_from_files(self._arm, [dip_retract])
+
     def ReadyPose(self):
         ready = self._pen.touch_pose()
         self._client.send_and_execute_joint_space_goals_from_files(self._arm, [ready])
@@ -368,7 +375,7 @@ class CharacterWriter:
                                   new_vals=[-3.0, 5.0])
         movo_pp.pose_publisher(msg, arm=self.arm_side, rate=15, duration=2*self._retract_scale)  # will directly move joints
 
-    def Write(self, index=-1, visualize=True, method="together"):
+    def Write(self, index=-1, method="together", stroke_complete_cb=None, cb_args=None):
         if len(self._strokes) != len(self._writers):
             raise Value("Incorrect number of stroke writers. Needs %d but got %d"
                         % (len(self._strokes), len(self._writers)))
@@ -379,6 +386,8 @@ class CharacterWriter:
                     self.Write(i)
                     if self._retract_after_stroke:
                         self._Retract()
+                    if stroke_complete_cb is not None:
+                        stroke_complete_cb(i, **cb_args)
         else:
             if index > 0 and self._origin_pose is None:
                 util.warning("Origin pose unknown but not writing the first stroke."\
@@ -424,7 +433,7 @@ def write_characters(characters, retract_after_stroke=True, retract_scale=1):
             rospy.sleep(2)
             writer.Write()
             util.warning("Finished writing. Repositioning...")
-            writer.ReadyPose()
+            writer.DipRetract()
         except KeyboardInterrupt:
             print("Terminating...")
         except Exception as ex:
@@ -433,7 +442,6 @@ def write_characters(characters, retract_after_stroke=True, retract_scale=1):
             traceback.print_exc()
 
 def main():
-    # Ad-hoc
     parser = argparse.ArgumentParser(description='Let MOVO write characters')
     parser.add_argument("path", type=str, help="Path to a .npy file that contains characters"\
                         "data (each character is list of strokes, each of which is a list of waypoints).")
@@ -444,7 +452,6 @@ def main():
     parser.add_argument("--retract-scale", type=float, help="How much you want to retract the arm after writing"\
                         "every stroke. Acceptable values: float between 1 to 2", default=1.0)
     args = parser.parse_args()
-    FILE = "../../data/stroke.npy"
     characters = np.load(args.path)
     if args.index < 0:
         write_characters(characters, retract_after_stroke=(not args.continuous),

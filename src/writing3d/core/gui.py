@@ -16,9 +16,11 @@
 # 1. set 4 points
 # 2. remove perspective
 
+import os, sys
 import cv2
 import numpy as np
 import copy
+import yaml
 import argparse
 import sensor_msgs.msg
 import writing3d.common as common
@@ -146,7 +148,10 @@ class TkGui(object):
                           add="+")
 
     def _mouse_click_circle(self, event, param):
-        x, y = event.x, event.y
+        if type(event) == tuple:
+            x, y = event
+        else:
+            x, y = event.x, event.y
         if param['cond_func'](event, x, y):
             if param['loc_func'] is not None:
                 x, y = param['loc_func'](x, y)
@@ -235,8 +240,9 @@ class TkGui(object):
 
 class WritingGui(TkGui):
 
-    POINT_CIRCLE_RADIUS = 5
+    POINT_CIRCLE_RADIUS = 3
     KINECT_IMAGE_NAME = "kinect_view"
+    STEP_SIZE_PIXELS = 3
 
     def __init__(self, character_dim=500, hd=True):
         super(WritingGui, self).__init__()
@@ -252,7 +258,8 @@ class WritingGui(TkGui):
         # counter clock wise
         self._corners_persp = None
         # Scaling
-        if hd:
+        self._hd = hd
+        if self._hd:
             self._bg_scale = 0.7
             self._box_scale = 0.5
         else:
@@ -283,6 +290,35 @@ class WritingGui(TkGui):
 
     def kinect_image_shown(self):
         return WritingGui.KINECT_IMAGE_NAME in self._images
+
+    def save_config(self, dirpath):
+        with open(os.path.join(dirpath, "gui_config.yml")) as f:
+            config = {
+                'top_left': self._top_left,
+                'top_right': self._top_right,
+                'bottom_left': self._bottom_left,
+                'bottom_right': self._bottom_right,
+            }
+            yaml.save(config, f)
+
+    def set_kinect(kinect, take_picture_every=1):
+        """If this function is not called, update_kinect_image_periodically() will
+        not work."""
+        self._kinect = kinect
+        self._take_picture_every = take_picture_every
+
+    def update_kinect_image_periodically(self):
+        """update kinect image `every` second"""
+        if not hasattr(self, '_kinect') or self._kinect is None:
+            util.warning("Kinect not set. Won't capture image periodically.",
+                         debug_level=2)
+            return
+            
+        img = self._kinect.take_picture(hd=self._hd)
+        self.show_kinect_image(img)
+        self._check_and_draw()
+        self._root.after(self._take_picture_every*1000,
+                         self.update_kinect_image_periodically)
 
     def _cond_set_top_left(self, event, x, y):
         return self.kinect_image_shown() is not None \
@@ -342,11 +378,20 @@ class WritingGui(TkGui):
             self._draw_dash("right_line", self._bottom_right, self._top_right)
         if self._top_left is not None and self._top_right is not None\
            and self._bottom_left is not None and self._bottom_right is not None:
-            img_np, drawn_size = self._remove_perspective_show_result()
-            img_char, _ = self._extract_character_show_result(img_np, drawn_size)
+            self.extract_character_image(img_src=self._images[WritingGui.KINECT_IMAGE_NAME][0],
+                                         show_result=True)
 
-
-    def _remove_perspective_show_result(self):
+    def extract_character_image(self, img_src=None, show_result=False):
+        if img_src is None:
+            img_src = self._images[WritingGui.KINECT_IMAGE_NAME][0]
+        
+        img_np = self._remove_perspective(img_src,
+                                          show_result=show_result)
+        img_char = self._extract_character_helper(img_np,
+                                                  show_result=show_result)
+        return img_char
+        
+    def _remove_perspective(self, img_src, show_result=True):
         h, status = cv2.findHomography(np.array([self._top_left,
                                                  self._top_right,
                                                  self._bottom_right,
@@ -355,18 +400,15 @@ class WritingGui(TkGui):
                                                  [self._cdim, 0],
                                                  [self._cdim, self._cdim],
                                                  [0, self._cdim]]))
-        img_src = self._images[WritingGui.KINECT_IMAGE_NAME][0]
         img_dst = cv2.warpPerspective(img_src, h, (self._cdim, self._cdim))
-        size = self.show_image(WritingGui.KINECT_IMAGE_NAME + "_np", img_dst,
-                               loc=(self._width, 0), anchor='ne', scale=self._box_scale)
-        return img_dst, size
+        if show_result:
+            size = self.show_image(WritingGui.KINECT_IMAGE_NAME + "_np", img_dst,
+                                   loc=(self._width, 0), anchor='ne', scale=self._box_scale)
+        return img_dst
 
 
-    def _extract_character_show_result(self, img, size):
-        """`img` should have no perspective. `size` is the size that `img` is shown
-        on the screen (it's probably different from `img`'s dimensions, which is
-        equal to (self._cdim, self._cdim). ) 
-
+    def _extract_character_helper(self, img, show_result=True):
+        """
         Reference: https://docs.opencv.org/3.2.0/d7/d4d/tutorial_py_thresholding.html.
 
         The result will be a binary image with 0 = background and 1 = ink."""
@@ -388,26 +430,28 @@ class WritingGui(TkGui):
         img_th = 1 - img_th  # invert
 
         # Display
-        img_th_display = np.copy(img_th)
-        img_th_display[img_th_display==1] = 255
-        img_th_display[img_th_display==0] = 100
-        
-        if self._writing_character is not None:
-            # show the character on top of the currently extracted image. Resize if necessary
-            self._writing_character_img = np.zeros((self._cdim, self._cdim))
-            for stroke in self._writing_character:
-                for p in stroke:
-                    x, y = p[0], p[1]
-                    # Add 'double' thickness to this stroke (based on z)
-                    z = p[2] * 2
-                    img_th_display[int(round(y-z)):int(round(y+z)),
-                                   int(round(x-z)):int(round(x+z))] = 0
-                    
-        size = self.show_image("char_extract", img_th_display,
-                               loc=(self._width, size[1]), anchor='ne', scale=self._box_scale,
-                               interpolation=cv2.INTER_NEAREST)
-        return img_th, size
+        if show_result:
+            img_th_display = np.copy(img_th)
+            img_th_display[img_th_display==1] = 255
+            img_th_display[img_th_display==0] = 100
 
+            if self._writing_character is not None:
+                # show the character on top of the currently extracted image. Resize if necessary
+                self._writing_character_img = np.zeros((self._cdim, self._cdim))
+                for stroke in self._writing_character:
+                    for p in stroke:
+                        x, y = p[0], p[1]
+                        # Add 'double' thickness to this stroke (based on z)
+                        z = p[2] * 2
+                        img_th_display[int(round(y-z)):int(round(y+z)),
+                                       int(round(x-z)):int(round(x+z))] = 0
+
+            size = self.show_image("char_extract", img_th_display,
+                                   loc=(self._width,
+                                        img_th_display.shape[1]*self._box_scale),
+                                   anchor='ne', scale=self._box_scale,
+                                   interpolation=cv2.INTER_NEAREST)
+        return img_th
     
 
     def init(self):
@@ -435,7 +479,6 @@ class WritingGui(TkGui):
                                          radius=WritingGui.POINT_CIRCLE_RADIUS,
                                          color=(0, 102, 255),
                                          clear_previous=True, done_cb=self._store_bottom_right)
-
 
 def main():
     FILE = "../../../data/stroke.npy"

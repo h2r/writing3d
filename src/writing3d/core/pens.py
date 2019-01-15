@@ -13,6 +13,15 @@ import math
 from pprint import pprint
 import writing3d.common as common
 
+ALL_PENS = [Pen, SmallBrush, Sharpe]
+
+def str_to_pen(string):
+    for pen in ALL_PENS:
+        if string.lower() == pen.name():
+            return pen
+    raise ValueError("Pen %s is currently not supported.")
+        
+
 # Generic pen
 class Pen:
     CONFIG = {
@@ -22,6 +31,10 @@ class Pen:
         "Z_MAX": 0.05,
         "Z_LIFT": 0.05,
     }
+
+    @classmethod
+    def name(cls):
+        return "pen"
 
     @classmethod
     def touch_pose(cls):
@@ -52,6 +65,10 @@ class SmallBrush(Pen):
         "Z_MAX": 0.03,
         "Z_LIFT": 0.03,
     }
+    
+    @classmethod
+    def name(cls):
+        return "small_brush"
 
     @classmethod
     def touch_pose(cls):
@@ -66,6 +83,10 @@ class Sharpe:
         "RESOLUTION": 0.0002,
         "Z_LIFT": 0.03,
     }
+    
+    @classmethod
+    def name(cls):
+        return "sharpe"
 
     @classmethod
     def touch_pose(cls):
