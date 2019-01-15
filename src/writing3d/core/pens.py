@@ -13,15 +13,6 @@ import math
 from pprint import pprint
 import writing3d.common as common
 
-ALL_PENS = [Pen, SmallBrush, Sharpe]
-
-def str_to_pen(string):
-    for pen in ALL_PENS:
-        if string.lower() == pen.name():
-            return pen
-    raise ValueError("Pen %s is currently not supported.")
-        
-
 # Generic pen
 class Pen:
     CONFIG = {
@@ -95,3 +86,14 @@ class Sharpe:
     @classmethod
     def retract_pose(cls):
         return common.goal_file("retract_joint_pose_sharpe")
+
+
+ALL_PENS = [Pen, SmallBrush, Sharpe]
+
+def str_to_pen(string):
+    for pen in ALL_PENS:
+        if string.lower() == pen.name():
+            return pen
+    raise ValueError("Pen %s is currently not supported.")
+        
+

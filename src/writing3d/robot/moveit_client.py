@@ -7,7 +7,6 @@ import moveit_commander
 import moveit_msgs.msg
 import geometry_msgs.msg
 import actionlib
-import util
 import yaml
 
 from writing3d.msg import PlanMoveEEAction, PlanMoveEEGoal, PlanMoveEEResult, PlanMoveEEFeedback, \
@@ -16,6 +15,7 @@ from writing3d.msg import PlanMoveEEAction, PlanMoveEEGoal, PlanMoveEEResult, Pl
     PlanWaypointsAction, PlanWaypointsGoal, PlanWaypointsResult, PlanWaypointsFeedback,\
     GetStateAction, GetStateGoal, GetStateResult, GetStateFeedback
 from writing3d.common import ActionType
+import writing3d.util as util
 from writing3d.robot.moveit_planner import MoveitPlanner
 
 import argparse
@@ -31,8 +31,6 @@ class MoveitClient:
         FAILING = 1
 
     def __init__(self, robot_name="movo"):
-        rospy.init_node("moveit_%s_client" % robot_name,
-                        anonymous=True)
         self._plan_client = actionlib.SimpleActionClient("moveit_%s_plan" % robot_name,
                                                          PlanMoveEEAction)
         self._js_plan_client = actionlib.SimpleActionClient("moveit_%s_joint_space_plan" % robot_name,
@@ -259,6 +257,9 @@ def main():
     parser.add_argument('--state', help='Get robot state (joint values and pose)', action="store_true")
     args = parser.parse_args()
 
+    rospy.init_node("moveit_movo_client",
+                    anonymous=True)
+
     client = MoveitClient()
 
     if args.goal:
@@ -292,8 +293,5 @@ def main():
     elif args.state:
         goal = GetStateGoal()
         
-
-
-
 if __name__ == "__main__":
     main()

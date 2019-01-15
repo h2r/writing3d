@@ -15,7 +15,6 @@ import moveit_msgs.msg
 import geometry_msgs.msg
 import shape_msgs.msg
 import actionlib
-import util
 import copy
 import argparse
 
@@ -26,6 +25,7 @@ from writing3d.msg import PlanMoveEEAction, PlanMoveEEGoal, PlanMoveEEResult, Pl
     GetStateAction, GetStateGoal, GetStateResult, GetStateFeedback
 
 import writing3d.common as common
+import writing3d.util as util
 
 
 common.DEBUG_LEVEL = 1
@@ -49,8 +49,6 @@ class MoveitPlanner:
         # Initializing node
         util.info("Initializing moveit commander...")
         moveit_commander.roscpp_initialize(sys.argv)
-        rospy.init_node("moveit_%s_planner" % robot_name,
-                        anonymous=True)
 
         # interface to the robot, world, and joint group
         self._robot = moveit_commander.RobotCommander()
@@ -230,6 +228,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Movo Moveit Planner.')
     parser.add_argument('group_names', type=str, nargs="+", help="Group name(s) that the client wants to talk to")
     args = parser.parse_args()
+
+    rospy.init_node("moveit_movo_planner",
+                    anonymous=True)
     
     MoveitPlanner(args.group_names)
     rospy.spin()

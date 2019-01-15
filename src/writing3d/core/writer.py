@@ -6,7 +6,6 @@
 import matplotlib.pyplot as plt
 import sys
 import rospy
-import util
 import copy
 import numpy as np
 import yaml
@@ -16,8 +15,9 @@ from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from writing3d.robot.moveit_client import MoveitClient
 from writing3d.robot.moveit_planner import MoveitPlanner
 import writing3d.common as common
-import writing3d.pens as pens
-import writing3d.movo_pose_publisher as movo_pp
+import writing3d.core.pens as pens
+import writing3d.util as util
+import writing3d.robot.movo_pose_publisher as movo_pp
 from actionlib import SimpleGoalState
 import argparse
 

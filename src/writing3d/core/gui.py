@@ -29,6 +29,8 @@ from writing3d.robot.movo_vision import MovoKinectInterface
 import Tkinter as tk
 from PIL import Image, ImageTk
 
+import threading
+
 
 common.DEBUG_LEVEL = 2
 
@@ -53,6 +55,10 @@ class TkGui(object):
         # pack the canvas into a frame/form
         self._canvas.pack(fill=tk.BOTH)
         self._root.bind("<Key>", self._key_pressed)
+
+    @property
+    def root(self):
+        return root
     
     def show_image(self, name, img, loc=(0,0), anchor='nw',
                    scale=1, background=False, interpolation=cv2.INTER_LINEAR):
@@ -162,6 +168,8 @@ class TkGui(object):
                 self._shapes[param['event_name']].pop(-1)
             self._shapes[param['event_name']].append(self._canvas.create_oval(x-r, y-r, x+r, y+r, fill=param['color'],
                                                                               outline=""))
+            self._items[param['event_name'] + "_%d"
+                              % len(self._shapes[param['event_name']])] = self._shapes[param['event_name']][-1]
             if param['done_cb'] is not None:
                 param['done_cb'](self._shapes[param['event_name']][-1])
 
@@ -243,6 +251,10 @@ class WritingGui(TkGui):
     POINT_CIRCLE_RADIUS = 3
     KINECT_IMAGE_NAME = "kinect_view"
     STEP_SIZE_PIXELS = 3
+    TOP_LEFT_COLOR = (255, 80, 80)
+    TOP_RIGHT_COLOR = (0, 204, 102)
+    BOTTOM_LEFT_COLOR = (255, 255, 20)
+    BOTTOM_RIGHT_COLOR = (0, 102, 255)
 
     def __init__(self, character_dim=500, hd=True):
         super(WritingGui, self).__init__()
@@ -253,7 +265,6 @@ class WritingGui(TkGui):
         self._items = {}
         self._cdim = character_dim
         self._writing_character = None
-        self._writing_character_img = None
         self._stroke_images = []
         # counter clock wise
         self._corners_persp = None
@@ -271,6 +282,18 @@ class WritingGui(TkGui):
         is a list of waypoints x,y,z,z2,al,az. The dimension of the
         character should be equal to self._cdim"""
         self._writing_character = char
+
+    def save_writing_character_image(self, path):
+        img = np.full((self._cdim, self._cdim), 255, dtype=np.uint8)
+        for stroke in self._writing_character:
+            for p in stroke:
+                x, y = p[0], p[1]
+                # Add 'double' thickness to this stroke (based on z)
+                z = p[2] * 2
+                img[int(round(y-z)):int(round(y+z)),
+                    int(round(x-z)):int(round(x+z))] = 0
+        Image.fromarray(img).save(path)
+        
 
     def show_kinect_image(self, img):
         self.show_image(WritingGui.KINECT_IMAGE_NAME, img, background=True,
@@ -291,17 +314,37 @@ class WritingGui(TkGui):
     def kinect_image_shown(self):
         return WritingGui.KINECT_IMAGE_NAME in self._images
 
-    def save_config(self, dirpath):
-        with open(os.path.join(dirpath, "gui_config.yml")) as f:
+    def save_config(self, path):
+        with open(path, "w") as f:
             config = {
                 'top_left': self._top_left,
                 'top_right': self._top_right,
                 'bottom_left': self._bottom_left,
                 'bottom_right': self._bottom_right,
             }
-            yaml.save(config, f)
+            yaml.dump(config, f)
 
-    def set_kinect(kinect, take_picture_every=1):
+    def load_config(self, path):
+        with open(path) as f:
+            config = yaml.load(f)
+            self._top_left = config['top_left']
+            self._top_right = config['top_right']
+            self._bottom_left = config['bottom_left']
+            self._bottom_right = config['bottom_right']
+
+    def set_config_file(self, path):
+        self._config_file = path
+
+    def _save_config_cb(self, event):
+        if hasattr(self, "_config_file"):
+            if self._config_file is not None:
+                self.save_config(self._config_file)
+                util.success("GUI config saved to %s" % self._config_file)
+                return
+        self._config_file = "./gui_config.yml"   # temporary location
+        util.success("GUI config saved to %s" % self._config_file)
+
+    def set_kinect(self, kinect, take_picture_every=1):
         """If this function is not called, update_kinect_image_periodically() will
         not work."""
         self._kinect = kinect
@@ -317,7 +360,7 @@ class WritingGui(TkGui):
         img = self._kinect.take_picture(hd=self._hd)
         self.show_kinect_image(img)
         self._check_and_draw()
-        self._root.after(self._take_picture_every*1000,
+        self._root.after(int(self._take_picture_every*1000),
                          self.update_kinect_image_periodically)
 
     def _cond_set_top_left(self, event, x, y):
@@ -366,8 +409,30 @@ class WritingGui(TkGui):
                                                      fill=util.rgb_to_hex(color),
                                                      width=2.0,
                                                      dash=(4,4))
+    def _draw_circ(self, name, center, r, color=(255, 255, 255)):
+        if name in self._items:
+            self._canvas.delete(self._items[name])
+        x, y = center
+        self._items[name] = self._canvas.create_oval((x-r)*self._bg_scale,
+                                                     (y-r)*self._bg_scale,
+                                                     (x+r)*self._bg_scale,
+                                                     (y+r)*self._bg_scale,
+                                                     fill=util.rgb_to_hex(color))
 
     def _check_and_draw(self):
+        if self._top_left is not None:
+            self._draw_circ("set_top_left_1", self._top_left,
+                            WritingGui.POINT_CIRCLE_RADIUS, color=WritingGui.TOP_LEFT_COLOR)
+        if self._top_right is not None:
+            self._draw_circ("set_top_right_1", self._top_right,
+                            WritingGui.POINT_CIRCLE_RADIUS, color=WritingGui.TOP_RIGHT_COLOR)
+        if self._bottom_left is not None:
+            self._draw_circ("set_bottom_left_1", self._bottom_left,
+                            WritingGui.POINT_CIRCLE_RADIUS, color=WritingGui.BOTTOM_LEFT_COLOR)
+        if self._bottom_right is not None:
+            self._draw_circ("set_bottom_right_1", self._bottom_right,
+                            WritingGui.POINT_CIRCLE_RADIUS, color=WritingGui.BOTTOM_RIGHT_COLOR)
+            
         if self._top_left is not None and self._top_right is not None:
             self._draw_dash("top_line", self._top_left, self._top_right)
         if self._top_left is not None and self._bottom_left is not None:
@@ -437,7 +502,6 @@ class WritingGui(TkGui):
 
             if self._writing_character is not None:
                 # show the character on top of the currently extracted image. Resize if necessary
-                self._writing_character_img = np.zeros((self._cdim, self._cdim))
                 for stroke in self._writing_character:
                     for p in stroke:
                         x, y = p[0], p[1]
@@ -459,26 +523,30 @@ class WritingGui(TkGui):
         self.register_mouse_click_circle("set_top_left",
                                          self._cond_set_top_left,
                                          radius=WritingGui.POINT_CIRCLE_RADIUS,
-                                         color=(255, 80, 80),
+                                         color=WritingGui.TOP_LEFT_COLOR,
                                          clear_previous=True, done_cb=self._store_top_left)
 
         self.register_mouse_click_circle("set_top_right",
                                          self._cond_set_top_right,
                                          radius=WritingGui.POINT_CIRCLE_RADIUS,
-                                         color=(0, 204, 102),
+                                         color=WritingGui.TOP_RIGHT_COLOR,
                                          clear_previous=True, done_cb=self._store_top_right)
 
         self.register_mouse_click_circle("set_bottom_left",
                                          self._cond_set_bottom_left,
                                          radius=WritingGui.POINT_CIRCLE_RADIUS,
-                                         color=(255, 255, 20),
+                                         color=WritingGui.BOTTOM_LEFT_COLOR,
                                          clear_previous=True, done_cb=self._store_bottom_left)
 
         self.register_mouse_click_circle("set_bottom_right",
                                          self._cond_set_bottom_right,
                                          radius=WritingGui.POINT_CIRCLE_RADIUS,
-                                         color=(0, 102, 255),
+                                         color=WritingGui.BOTTOM_RIGHT_COLOR,
                                          clear_previous=True, done_cb=self._store_bottom_right)
+
+        self.register_key_press_event("save_config", "p",
+                                      self._save_config_cb)
+        
 
 def main():
     FILE = "../../../data/stroke.npy"

@@ -76,10 +76,10 @@ def info(text, debug_level=0, bold=False):
     if common.DEBUG_LEVEL >= debug_level:
         print(bcolors.s(bcolors.Cyan, text, bold=bold))
 
-def info2(text, debug_level=1):
+def info2(text, debug_level=1, bold=False):
     # Used by default for debugging.
     if common.DEBUG_LEVEL >= debug_level:
-        print(bcolors.s(bcolors.LightMagenta, text))
+        print(bcolors.s(bcolors.LightMagenta, text, bold=bold))
 
 def error(text, debug_level=0):
     if common.DEBUG_LEVEL >= debug_level:
@@ -89,9 +89,9 @@ def warning(text, debug_level=0):
     if common.DEBUG_LEVEL >= debug_level:
         print(bcolors.s(bcolors.Yellow, text))
 
-def success(text, debug_level=0):
+def success(text, debug_level=0, bold=False):
     if common.DEBUG_LEVEL >= debug_level:
-        print(bcolors.s(bcolors.Green, text))
+        print(bcolors.s(bcolors.Green, text, bold=bold))
 
 def rgb_to_hex(rgb):
     r,g,b = rgb
