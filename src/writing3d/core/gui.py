@@ -277,13 +277,22 @@ class WritingGui(TkGui):
             self._bg_scale = 1.0
             self._box_scale = 0.3
 
+    @property
+    def stroke_images(self):
+        return self._stroke_images
+
     def set_writing_character(self, char):
         """Set the writing character. A char is a list of strokes which
         is a list of waypoints x,y,z,z2,al,az. The dimension of the
         character should be equal to self._cdim"""
         self._writing_character = char
+        self._stroke_images = [] # reset stroke images
 
     def save_writing_character_image(self, path):
+        """Save the image via PIL's Image.save.
+        Load the image as a numpy array with cv2 by:
+           cv2.imread("image.bmp", cv2.IMREAD_UNCHANGED)
+        """
         img = np.full((self._cdim, self._cdim), 255, dtype=np.uint8)
         for stroke in self._writing_character:
             for p in stroke:
@@ -293,23 +302,31 @@ class WritingGui(TkGui):
                 img[int(round(y-z)):int(round(y+z)),
                     int(round(x-z)):int(round(x+z))] = 0
         Image.fromarray(img).save(path)
-        
+
+    def save_stroke_image(self, img, path):
+        """`img` is a stroke image. it is binary, where 0 = background
+        and 255 = ink. Save the image via PIL's Image.save."""
+        Image.fromarray(img).save(path)
 
     def show_kinect_image(self, img):
         self.show_image(WritingGui.KINECT_IMAGE_NAME, img, background=True,
                         loc=(0,0), scale=self._bg_scale)
 
-    def show_stroke_image(self, img):
+    def add_stroke_image(self, img):
+        """`img` is a stroke image. it is binary, where 0 = background
+        and 255 = ink."""
+        self._stroke_images.append(img)
+
+    def _show_stroke_images(self):
         """All stroke images will be shown one next to each other on the top
         of the screen. The `img` should be of size (self._cdim, self._cdim).
         And since `img` is a stroke image, it is binary, where 0 = background
-        and 1 = ink."""
-        self._stroke_images.append(img)
-        img_display = np.copy(img)
-        img_display[img_display==1] = 255
-        self.show_image("stroke-%d" % len(self._stroke_images),
-                        img_display, loc=(img_display.shape[0]*(self._box_scale/2.0)*(len(self._stroke_images)-1), 0),
-                        scale=self._box_scale/2.0, interpolation=cv2.INTER_NEAREST)
+        and 255 = ink."""
+        for i in range(len(self._stroke_images)):
+            img_display = self._stroke_images[i]
+            self.show_image("stroke-%d" % i,
+                            img_display, loc=(img_display.shape[0]*(self._box_scale/2.0)*(i-1), 0),
+                            scale=self._box_scale/2.0, interpolation=cv2.INTER_NEAREST)
 
     def kinect_image_shown(self):
         return WritingGui.KINECT_IMAGE_NAME in self._images
@@ -445,6 +462,8 @@ class WritingGui(TkGui):
            and self._bottom_left is not None and self._bottom_right is not None:
             self.extract_character_image(img_src=self._images[WritingGui.KINECT_IMAGE_NAME][0],
                                          show_result=True)
+        self._show_stroke_images()
+        
 
     def extract_character_image(self, img_src=None, show_result=False):
         if img_src is None:
@@ -476,7 +495,7 @@ class WritingGui(TkGui):
         """
         Reference: https://docs.opencv.org/3.2.0/d7/d4d/tutorial_py_thresholding.html.
 
-        The result will be a binary image with 0 = background and 1 = ink."""
+        The result will be a binary image with 0 = background and 255 = ink."""
         # Perform Otsu thresholding after Gaussian filtering
         img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
         blur = cv2.GaussianBlur(img,(5,5),0)
@@ -493,11 +512,11 @@ class WritingGui(TkGui):
         img_th[0:corner_width,
             img_th.shape[1]-corner_height:img_th.shape[1]].fill(1)
         img_th = 1 - img_th  # invert
+        img_th[img_th==1] = 255  # 255 = ink, as specified.
 
         # Display
         if show_result:
             img_th_display = np.copy(img_th)
-            img_th_display[img_th_display==1] = 255
             img_th_display[img_th_display==0] = 100
 
             if self._writing_character is not None:

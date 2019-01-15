@@ -1,3 +1,4 @@
+import sys
 import math
 import writing3d.common as common
 import numpy as np
@@ -135,6 +136,16 @@ def print_in_box(msgs, ho="=", vr="||", color=None):
         print(ho*(max_len+2*(len(vr)+1)))
     else:
         print(bcolors.s(color, ho*(max_len+2*(len(vr)+1))))
+
+
+# Disable
+def block_print():
+    sys.stdout = open(os.devnull, 'w')
+
+# Restore
+def enable_print():
+    sys.stdout = sys.__stdout__
+
     
 # Data
 def downsample(arr1d, final_len):
@@ -179,3 +190,4 @@ def intersect(l1, l2):
     t, k = np.linalg.solve(A, b)
     p_int = point_along(p1, v1, t=t)
     return p_int    
+

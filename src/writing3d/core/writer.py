@@ -373,7 +373,9 @@ class CharacterWriter:
             raise ValueError("Invalid retract scale! Only accept float between 1.0 and 2.0 (inclusive). Got %s" % str(self._retract_scale))
         msg = movo_pp.angular_vel(indices=[3,5],
                                   new_vals=[-3.0, 5.0])
+        util.block_print()
         movo_pp.pose_publisher(msg, arm=self.arm_side, rate=15, duration=2*self._retract_scale)  # will directly move joints
+        util.enable_print()
 
     def Write(self, index=-1, method="together", stroke_complete_cb=None, cb_args=None):
         if len(self._strokes) != len(self._writers):
