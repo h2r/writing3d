@@ -67,7 +67,7 @@ class CollectData(threading.Thread):
         img = kinect.take_picture(hd=True)
         gui.show_kinect_image(img)
         img_char = gui.extract_character_image(img_src=img, show_result=False)
-        gui.show_stroke_image(img_char)
+        gui.add_stroke_image(img_char)
         np.save(os.path.join(save_dir, "stroke-%d.npy" % stroke_indx),
                 img_char)
 
