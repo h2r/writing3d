@@ -11,11 +11,12 @@ from writing3d.robot.movo_vision import MovoKinectInterface
 CURRENT_CHAR_INDX = ""
 
 def update_stroke_images(gui, characters=None, chars_path=None):
-    global CURRENT_CHAR_NAME
+    global CURRENT_CHAR_INDX
     """Check the characters path. Display the stroke images of the
     latest character."""
     if rospy.has_param('current_writing_character_index'):
         char_indx = rospy.get_param('current_writing_character_index')
+        char_dir = "Character-%d" % char_indx
     else:
         char_dir = sorted(os.listdir(chars_path))[-1]
         char_indx = int(char_dir.split("-")[-1])
@@ -26,7 +27,7 @@ def update_stroke_images(gui, characters=None, chars_path=None):
     for f in sorted(os.listdir(os.path.join(chars_path, char_dir))):
         if f.startswith("stroke"):
             stroke_img_files.append(f)
-    if len(gui.stroke_images) < len(stroke_img_files):
+    if len(gui.stroke_images) != len(stroke_img_files):
         for i in range(len(gui.stroke_images), len(stroke_img_files)):
             img = cv2.imread(os.path.join(chars_path, char_dir, stroke_img_files[i]),
                              cv2.IMREAD_UNCHANGED)

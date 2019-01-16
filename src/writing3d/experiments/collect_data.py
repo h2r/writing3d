@@ -268,7 +268,7 @@ def main():
     parser.add_argument("-g", "--gui-config-file", type=str, help="Path to a file that stores gui config."
                         "If the file does not exist, when gui saves config, it will use this path.",
                         default=None)
-    args = parser.parse_args()
+    args, _ = parser.parse_known_args()
     characters = np.load(args.chars_path)
     if args.num_chars >= len(characters):
         raise ValueError("Index out of bound. Valid range: 0 ~ %d" % (len(characters)))
