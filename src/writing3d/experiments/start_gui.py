@@ -42,8 +42,6 @@ def run_gui(chars_path, characters, gui_config_file=None):
         if os.path.exists(gui_config_file):
             gui.load_config(gui_config_file)
 
-    
-
     gui.register_periodic_event("update_stroke_images",
                                 update_stroke_images,
                                 params={

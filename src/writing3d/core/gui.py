@@ -276,6 +276,8 @@ class WritingGui(TkGui):
         else:
             self._bg_scale = 1.0
             self._box_scale = 0.3
+        self._periodic_events = {}
+        
 
     @property
     def stroke_images(self):
@@ -365,13 +367,12 @@ class WritingGui(TkGui):
         self._config_file = "./gui_config.yml"   # temporary location
         util.success("GUI config saved to %s" % self._config_file)
 
-    def set_kinect(self, kinect, take_picture_every=1):
+    def set_kinect(self, kinect):
         """If this function is not called, update_kinect_image_periodically() will
         not work."""
         self._kinect = kinect
-        self._take_picture_every = take_picture_every
 
-    def update_kinect_image_periodically(self):
+    def _update_kinect_image(self, gui):
         """update kinect image `every` second"""
         if not hasattr(self, '_kinect') or self._kinect is None:
             util.warning("Kinect not set. Won't capture image periodically.",
@@ -382,8 +383,21 @@ class WritingGui(TkGui):
         if img is not None:
             self.show_kinect_image(img)
             self._check_and_draw()
-        self._root.after(int(self._take_picture_every*1000),
-                         self.update_kinect_image_periodically)
+
+    def update_kinect_image_periodically(self, every=1):
+        self.register_periodic_event("update_kinect_image",
+                                     self._update_kinect_image,
+                                     every=every)
+
+    def register_periodic_event(self, name, event_func, every=1, params={}):
+        """Calls the event function every `every` seconds"""
+        def call_func():
+            event_func(self, **params)
+            
+        if name in self._periodic_events:
+            raise ValueError("Event %s is already registered!" % name)
+        call_func()
+        self._root.after(int(every*1000), call_func)
 
     def _cond_set_top_left(self, event, x, y):
         return self.kinect_image_shown() is not None \

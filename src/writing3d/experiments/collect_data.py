@@ -31,9 +31,11 @@
 #
 # Try:
 # ./collect_data.py ../../../data/stroke.npy ../../../data/characters/ -g ../../../cfg/gui_config.yml
-import os
+import cv2
+import os, signal
 import rospy
 import subprocess
+from multiprocessing import Process
 import numpy as np
 from scipy.ndimage.measurements import label
 import writing3d.common as common
@@ -42,22 +44,19 @@ from writing3d.robot.movo_vision import MovoKinectInterface
 from writing3d.core.writer import CharacterWriter, write_characters
 from writing3d.core.gui import WritingGui
 import writing3d.core.pens as pens
-import threading
 
 import argparse
 
 
-class CollectData(threading.Thread):
+class CollectData():
 
-    def __init__(self, characters, dimension, gui, kinect, save_dir,
+    def __init__(self, characters, dimension, gui, save_dir,
                  pen=pens.SmallBrush, test_first=False):
-        threading.Thread.__init__(self)
         self._characters = characters
         self._current_character = None
         self._dimension = dimension
         self._gui = gui
         self._pen = pen
-        self._kinect = kinect
         self._save_dir = save_dir
         self._done = False
         self._test_first = test_first
@@ -129,6 +128,11 @@ class CollectData(threading.Thread):
         if self._done:
             return        
         # write a test character
+        rospy.init_node("collect_writing_data", anonymous=True)
+
+        self._kinect = MovoKinectInterface()
+        self._gui.set_kinect(self._kinect)
+        
         if self._test_first:
             # 1. Dip ink & 2. Dot on 4 corners
             dot_four_corners(self._dimension, self._pen)
@@ -217,21 +221,24 @@ def dot_four_corners(dim, pen):
 def begin_procedure(characters, pen, dimension, save_dir,
                     test_first=False, gui_config_file=None):
 
-    # 3. Start UI
+    # 3. Start UI  -- this gui will not display anything; it
+    # just uses the WritingGui API and kinect to take images.
     gui = WritingGui(hd=True)
     gui.init()
-    kinect = MovoKinectInterface()
-    gui.set_kinect(kinect, take_picture_every=0.5)
-    gui.update_kinect_image_periodically()
+    logo_img = cv2.cvtColor(cv2.imread("logo.jpg", cv2.IMREAD_UNCHANGED),
+                            cv2.COLOR_BGR2RGB)
+    gui.show_image("logo", logo_img, background=True)
 
     if gui_config_file is not None:
         gui.set_config_file(gui_config_file)
         if os.path.exists(gui_config_file):
             gui.load_config(gui_config_file)
 
-    task = CollectData(characters, dimension, gui, kinect, save_dir, pen=pen, test_first=test_first)
-    task.daemon = True
-    task.start()
+    task = CollectData(characters, dimension, gui, save_dir,
+                       pen=pen, test_first=test_first)
+    p = Process(target=task.run, args=())
+    p.daemon = True
+    p.start()
     gui.spin()
 
 
@@ -257,15 +264,28 @@ def main():
     if args.num_chars >= len(characters):
         raise ValueError("Index out of bound. Valid range: 0 ~ %d" % (len(characters)))
 
-    rospy.init_node("collect_writing_data", anonymous=True)
-    characters[0], characters[1] = characters[1], characters[0]
-
     if args.num_chars > 0:
         characters = characters[:args.num_chars]
-    begin_procedure(characters[:args.num_chars], pens.str_to_pen(args.pen),
-                    args.dim, args.save_dirpath,
-                    test_first=args.test_first, gui_config_file=args.gui_config_file)
 
+    gui_config_file_arg = ['-g', args.gui_config_file] \
+                          if args.gui_config_file is not None else []
+    try:
+        p_ext_gui = subprocess.Popen(['rosrun',
+                                      'writing3d',
+                                      'start_gui.py',
+                                      args.save_dirpath,
+                                      args.chars_path] + gui_config_file_arg)
+        begin_procedure(characters[:args.num_chars], pens.str_to_pen(args.pen),
+                        args.dim, args.save_dirpath,
+                        test_first=args.test_first, gui_config_file=args.gui_config_file)
+    finally:
+        try:
+            os.killpg(os.getpgid(p_ext_gui.pid), signal.SIGTERM)
+        except OSError as e:
+            if e.errno == 3:
+                pass
+            else:
+                raise e
 
 if __name__ == "__main__":
     main()
