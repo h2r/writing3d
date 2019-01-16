@@ -8,16 +8,19 @@ import os
 from writing3d.core.gui import WritingGui
 from writing3d.robot.movo_vision import MovoKinectInterface
 
-CURRENT_CHAR_NAME = ""
+CURRENT_CHAR_INDX = ""
 
 def update_stroke_images(gui, characters=None, chars_path=None):
     global CURRENT_CHAR_NAME
     """Check the characters path. Display the stroke images of the
     latest character."""
-    char_dir = sorted(os.listdir(chars_path))[-1]
-    if char_dir != CURRENT_CHAR_NAME:
-        CURRENT_CHAR_NAME = char_dir
+    if rospy.has_param('current_writing_character_index'):
+        char_indx = rospy.get_param('current_writing_character_index')
+    else:
+        char_dir = sorted(os.listdir(chars_path))[-1]
         char_indx = int(char_dir.split("-")[-1])
+    if char_indx != CURRENT_CHAR_INDX:
+        CURRENT_CHAR_INDX = char_indx
         gui.set_writing_character(characters[char_indx])
     stroke_img_files = []
     for f in sorted(os.listdir(os.path.join(chars_path, char_dir))):
@@ -35,7 +38,7 @@ def run_gui(chars_path, characters, gui_config_file=None):
     gui.init()
     kinect = MovoKinectInterface()
     gui.set_kinect(kinect)
-    gui.update_kinect_image_periodically(every=0.1)
+    gui.update_kinect_image_periodically(every=0.3)
 
     if gui_config_file is not None:
         gui.set_config_file(gui_config_file)

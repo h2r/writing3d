@@ -53,7 +53,7 @@ class MovoKinectInterface:
         topic = "movo_camera/hd/image_color" if hd else "movo_camera/color/image_color_rect"
         rospy.Subscriber(topic, sensor_msgs.msg.Image, get_picture)
         while self._image_taken is None:
-            rospy.sleep(0.5)
+            rospy.sleep(0.02)
         img = copy.deepcopy(self._image_taken)
         self._image_taken = None
         return img

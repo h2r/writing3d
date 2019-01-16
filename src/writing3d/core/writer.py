@@ -369,7 +369,7 @@ class CharacterWriter:
         util.info2("Retracting...")
         retract = self._pen.retract_pose()
         self._client.send_and_execute_joint_space_goals_from_files(self._arm, [retract])
-        rospy.sleep(7)
+        rospy.sleep(3)
 
     def Write(self, index=-1, method="together", stroke_complete_cb=None, cb_args=None):
         if len(self._strokes) != len(self._writers):

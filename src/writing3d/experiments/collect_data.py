@@ -111,9 +111,8 @@ class CollectData():
         # their difference.
         take_difference = kwargs.get("take_difference", False)
 
-        util.info("Saving information after writing stroke %d" % stroke_indx)
+        util.info("Saving information after writing stroke %d" % (stroke_indx+1))
         img = self._kinect.take_picture(hd=True)
-        self._gui.show_kinect_image(img)
         img_char = self._gui.extract_character_image(img_src=img, show_result=False)
 
         if take_difference:
@@ -128,10 +127,9 @@ class CollectData():
         if self._done:
             return        
         # write a test character
-        rospy.init_node("collect_writing_data", anonymous=True)
+        rospy.init_node("collect_writing_data")
 
         self._kinect = MovoKinectInterface()
-        self._gui.set_kinect(self._kinect)
         
         if self._test_first:
             # 1. Dip ink & 2. Dot on 4 corners
@@ -152,6 +150,7 @@ class CollectData():
             if not os.path.exists(save_dir):
                 os.makedirs(save_dir)
             self._current_character = character
+            rospy.set_param("current_writing_character_index", i)
             try:
                 writer = CharacterWriter(character, pen=pens.SmallBrush,
                                          num_waypoints=10,  # should change to -1
@@ -182,6 +181,26 @@ class CollectData():
                 traceback.print_exc()
         self._done = True
 
+class FakeGuiWrapper():
+    def __init__(self, gui_config_file=None):
+        
+        self._gui = WritingGui(hd=True)
+        self._gui.init()
+        logo_img = cv2.cvtColor(cv2.imread("logo.jpg", cv2.IMREAD_UNCHANGED),
+                                cv2.COLOR_BGR2RGB)
+        self._gui.show_image("logo", logo_img, background=True)
+        if gui_config_file is not None:
+            self._gui.set_config_file(gui_config_file)
+            if os.path.exists(gui_config_file):
+                self._gui.load_config(gui_config_file)
+
+    @property
+    def gui(self):
+        return self._gui
+
+    def run(self):
+        self._gui.spin()
+
         
 
 def dip_pen(writer):
@@ -200,7 +219,6 @@ def dot_four_corners(dim, pen):
     # strokes is an array of waypoints (x,y,z,z2,al,az)
     strokes = np.array([
         [[0, 0, 1.0, 0.0, 0.0, 0.0]],
-        [[dim-1, 0, -10.0, 0.0, 0.0, 0.0]],
         [[dim-1, 0, 1.0, 0.0, 0.0, 0.0]],
         [[dim-1, dim-1, 1.0, 0.0, 0.0, 0.0]],
         [[0, dim-1, 1.0, 0.0, 0.0, 0.0]]
@@ -223,24 +241,15 @@ def begin_procedure(characters, pen, dimension, save_dir,
 
     # 3. Start UI  -- this gui will not display anything; it
     # just uses the WritingGui API and kinect to take images.
-    gui = WritingGui(hd=True)
-    gui.init()
-    logo_img = cv2.cvtColor(cv2.imread("logo.jpg", cv2.IMREAD_UNCHANGED),
-                            cv2.COLOR_BGR2RGB)
-    gui.show_image("logo", logo_img, background=True)
-
-    if gui_config_file is not None:
-        gui.set_config_file(gui_config_file)
-        if os.path.exists(gui_config_file):
-            gui.load_config(gui_config_file)
-
-    task = CollectData(characters, dimension, gui, save_dir,
+    fg = FakeGuiWrapper(gui_config_file)
+    task = CollectData(characters, dimension, fg.gui, save_dir,
                        pen=pen, test_first=test_first)
-    p = Process(target=task.run, args=())
+    p = Process(target=fg.run, args=())
     p.daemon = True
     p.start()
-    gui.spin()
-
+    task.run()
+    p.terminate()
+    p.join()
 
 
 def main():
@@ -269,23 +278,16 @@ def main():
 
     gui_config_file_arg = ['-g', args.gui_config_file] \
                           if args.gui_config_file is not None else []
-    try:
-        p_ext_gui = subprocess.Popen(['rosrun',
-                                      'writing3d',
-                                      'start_gui.py',
-                                      args.save_dirpath,
-                                      args.chars_path] + gui_config_file_arg)
-        begin_procedure(characters[:args.num_chars], pens.str_to_pen(args.pen),
-                        args.dim, args.save_dirpath,
-                        test_first=args.test_first, gui_config_file=args.gui_config_file)
-    finally:
-        try:
-            os.killpg(os.getpgid(p_ext_gui.pid), signal.SIGTERM)
-        except OSError as e:
-            if e.errno == 3:
-                pass
-            else:
-                raise e
+
+    p_ext_gui = subprocess.Popen(['rosrun',
+                                  'writing3d',
+                                  'start_gui.py',
+                                  args.save_dirpath,
+                                  args.chars_path] + gui_config_file_arg)
+    begin_procedure(characters[:args.num_chars], pens.str_to_pen(args.pen),
+                    args.dim, args.save_dirpath,
+                    test_first=args.test_first, gui_config_file=args.gui_config_file)
+    p_ext_gui.wait()
 
 if __name__ == "__main__":
     main()
