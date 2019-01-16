@@ -321,7 +321,7 @@ class WritingGui(TkGui):
         """All stroke images will be shown one next to each other on the top
         of the screen. Each one should be of size (self._cdim, self._cdim).
         As a stroke image, it is binary, where 0 = background and 255 = ink."""
-        img_width = self._cdim*(self._box_scale/2.0)
+        img_width = self._cdim*(self._box_scale/3.0)
         num_img_per_row = int(self._width / img_width)
         for i in range(len(self._stroke_images)):
             img_display = self._stroke_images[i]
@@ -329,7 +329,7 @@ class WritingGui(TkGui):
             y_loc = int(i / num_img_per_row) * img_width
             self.show_image("stroke-%d" % i,
                             img_display, loc=(x_loc, y_loc),
-                            scale=self._box_scale/2.0, interpolation=cv2.INTER_NEAREST)
+                            scale=self._box_scale/3.0, interpolation=cv2.INTER_NEAREST)
 
     def kinect_image_shown(self):
         return WritingGui.KINECT_IMAGE_NAME in self._images
@@ -347,10 +347,11 @@ class WritingGui(TkGui):
     def load_config(self, path):
         with open(path) as f:
             config = yaml.load(f)
-            self._top_left = np.array(config['top_left'])
-            self._top_right = np.array(config['top_right'])
-            self._bottom_left = np.array(config['bottom_left'])
-            self._bottom_right = np.array(config['bottom_right'])
+            if config is not None:
+                self._top_left = np.array(config['top_left'])
+                self._top_right = np.array(config['top_right'])
+                self._bottom_left = np.array(config['bottom_left'])
+                self._bottom_right = np.array(config['bottom_right'])
 
     def set_config_file(self, path):
         self._config_file = path

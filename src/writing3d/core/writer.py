@@ -366,16 +366,15 @@ class CharacterWriter:
         self._client.send_and_execute_joint_space_goals_from_files(self._arm, [ready])
 
     def _Retract(self):
-        """We don't want to delay when retracting. So we will move the arm directly"""
         util.info2("Retracting...", debug_level=2)
-        # move joints 3 and 5
-        if self._retract_scale < 1.0 or self._retract_scale > 2.0:
-            raise ValueError("Invalid retract scale! Only accept float between 1.0 and 2.0 (inclusive). Got %s" % str(self._retract_scale))
-        msg = movo_pp.angular_vel(indices=[3,5],
-                                  new_vals=[-3.0, 5.0])
-        util.block_print()
-        movo_pp.pose_publisher(msg, arm=self.arm_side, rate=15, duration=2*self._retract_scale)  # will directly move joints
-        util.enable_print()
+        # # move joints 3 and 5
+        # if self._retract_scale < 1.0 or self._retract_scale > 2.0:
+        #     raise ValueError("Invalid retract scale! Only accept float between 1.0 and 2.0 (inclusive). Got %s" % str(self._retract_scale))
+        # msg = movo_pp.angular_vel(indices=[3,5],
+        #                           new_vals=[-3.0, 5.0])
+        # movo_pp.pose_publisher(msg, arm=self.arm_side, rate=15, duration=2*self._retract_scale)  # will directly move joints
+        retract = self._pen.retract_pose()
+        self._client.send_and_execute_joint_space_goals_from_files(self._arm, [retract])
 
     def Write(self, index=-1, method="together", stroke_complete_cb=None, cb_args=None):
         if len(self._strokes) != len(self._writers):
@@ -386,10 +385,14 @@ class CharacterWriter:
             for i in range(len(self._strokes)):
                 if self._client.is_healthy():
                     self.Write(i)
-                    if self._retract_after_stroke:
-                        self._Retract()
-                    if stroke_complete_cb is not None:
-                        stroke_complete_cb(i, **cb_args)
+                    if len(self._strokes[i]) > 0:
+                        if self._retract_after_stroke:
+                            self._Retract()
+                        if stroke_complete_cb is not None:
+                            if self._blank_stroke_first:
+                                stroke_complete_cb(i-1, **cb_args)  # -1 to account for the empty stroke
+                            else:
+                                stroke_complete_cb(i, **cb_args)
         else:
             if index > 0 and self._origin_pose is None:
                 util.warning("Origin pose unknown but not writing the first stroke."\

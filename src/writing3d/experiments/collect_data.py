@@ -17,15 +17,15 @@
 #
 # Manual steps before starting:
 # - Start a planner
-#   ./moveit_planner right_arm left_arm
+#   ./moveit_planner.py right_arm left_arm
 # - Adjust kinect pan to 0.0 and tilt to -0.6 by
-#   ./movo_pose_publisher head -p 0.0 0.2 0.1 -t -0.6 0.2 0.1
+#   ./movo_pose_publisher.py head -p 0.0 0.2 0.1 -t -0.6 0.2 0.1
 # - Move the left arm away by
-#   ./moveit_client left_arm -f ../../../cfg/left_clearway.yml
-#   ./moveit_client left_arm -e
+#   ./moveit_client.py left_arm -f ../../../cfg/left_clearway.yml
+#   ./moveit_client.py left_arm -e
 # - Let the arm be at dip_retract pose
-#   ./moveit_client right_arm -f ../../../cfg/dip_retract.yml
-#   ./moveit_client right_arm -e
+#   ./moveit_client.py right_arm -f ../../../cfg/dip_retract.yml
+#   ./moveit_client.py right_arm -e
 # - Place a table (with two layered foams) in front of the
 #   robot.
 #
@@ -76,38 +76,42 @@ class CollectData(threading.Thread):
           Take the difference
            -> Get the positive values
            -> Cluster (connected components)
-           -> Eliminate all clusters except for the one with closest
-              average distance to all points on stroke.
+           -> Eliminate small clusters and keep big clusters.
         
         This is not a particularly efficient procedure but it will
         benefit the network.
         """
+        # The ink that was there, will still be there.
+        # The ink that were just added may or may not be there.
         points_on_stroke = {(p[0],p[1]) for p in stroke}
-        
-        diff = img_char - gui.stroke_images[-1]
-        pos_diff = np.where(diff>0, diff, 0)
 
+        diff = cur_stroke_img - prev_stroke_img
+        pos_diff = np.where(diff!=1, diff, 0)  # because img is of type uint8,
+                                              # rather than having -255, we will have 1.
         structure = np.ones((3, 3), dtype=np.int)
         labeled, ncomponents = label(pos_diff, structure)
         indices = np.flip(np.indices(reversed(labeled.shape)).T[:,:,[0, 1]], axis=len(labeled.shape))
-        best_dist, best_comp = float('inf'), None
+        comps_kept = []
         for i in range(ncomponents):
             # Get the center of mass (based on indices) for this component
-            indices_for_component = indicies[labeled==(i+1)]
-            centroid = indices_for_component.mean(axis=0)
-            avg_dist = np.mean([util.euc_dist(centroid, p)
-                                for p in points_on_stroke])
-            if avg_dist > best_dist:
-                best_comp = i
-                best_dist = avg_dist
+            indices_for_component = indices[labeled==(i+1)]
+
+            # If the component is bigger than 1% image, definitely keep it.
+            if len(indices_for_component) > self._dimension*self._dimension * 0.001:  # only consider big ones
+                comps_kept.append(i)
+                # centroid = indices_for_component.mean(axis=0)
+                # avg_dist = np.mean([util.euc_dist(centroid, p)
+                #                     for p in points_on_stroke])
+                # if avg_dist < best_dist:
+                #     best_comp = i+1
+                #     best_dist = avg_dist
         stroke_img = np.copy(prev_stroke_img)
-        prev_stroke_img[labeled==best_comp] = 255
+        for i in comps_kept:
+            stroke_img[labeled==i+1] = 255
         return stroke_img
         
 
     def stroke_complete_cb(self, stroke_indx, **kwargs):
-        gui = kwargs.get("gui", None)
-        kinect = kwargs.get("kinect", None)
         # should be path to the directory for the character.
         save_dir = kwargs.get("save_dir", None)
         # if true, the image for stroke i will be image for i-1 plus
@@ -115,25 +119,16 @@ class CollectData(threading.Thread):
         take_difference = kwargs.get("take_difference", False)
 
         util.info("Saving information after writing stroke %d" % stroke_indx)
-        img = kinect.take_picture(hd=True)
-        img_char = gui.extract_character_image(img_src=img, show_result=False)
+        img = self._kinect.take_picture(hd=True)
+        img_char = self._gui.extract_character_image(img_src=img, show_result=False)
 
         if take_difference:
-            if len(stroke_images) > 0:
-                # The ink that was there, will still be there.
-                # The ink that were just added AND within the range of the current
-                #    stroke will be there too.
-                #
-                # 
-                diff = img_char - gui.stroke_images[-1]
-                
-                
-                
-                diff[diff < 0] = 0
-                img_char = gui.
+            if len(self._gui.stroke_images) > 0:
+                img_char = self._produce_stroke_image_from_difference(
+                    self._gui.stroke_images[-1], img_char, self._current_character[stroke_indx])
         
-        gui.add_stroke_image(img_char)
-        gui.save_stroke_image(img_char, "stroke-%d.bmp" % stroke_indx)
+        self._gui.add_stroke_image(img_char)
+        self._gui.save_stroke_image(img_char, os.path.join(save_dir, "stroke-%d.bmp" % stroke_indx))
 
 
     def run(self):
@@ -149,7 +144,7 @@ class CollectData(threading.Thread):
             self._gui.set_writing_character(self._characters[0])
             write_characters([self._characters[0]], retract_after_stroke=False)
             util.info("Sleeping for 20 seconds. Confirm bounding box within this time.")
-            ropspy.sleep(20)
+            rospy.sleep(20)
         rospy.sleep(2)
 
         # 4. start collecting data
@@ -157,7 +152,7 @@ class CollectData(threading.Thread):
             util.info("Starting character writer...")
             save_dir = os.path.join(self._save_dir, "Character-%d" % i)
             if not os.path.exists(save_dir):
-                os.makedirs(save_dir, exist_ok=True)
+                os.makedirs(save_dir)
             self._current_character = character
             try:
                 writer = CharacterWriter(character, pen=pens.SmallBrush,
@@ -167,16 +162,15 @@ class CollectData(threading.Thread):
                 writer.print_character(res=40)
                 self._gui.set_writing_character(character)
                 self._gui.save_writing_character_image(os.path.join(save_dir, "image.bmp"))
-                dip_pen(writer)
+                # dip_pen(writer)
                 get_ready(writer)
                 writer.init_writers()
                 util.warning("Begin writing...")
                 rospy.sleep(2)
                 writer.Write(stroke_complete_cb=self.stroke_complete_cb,
                              cb_args={
-                                 'gui': self._gui,
-                                 'kinect': self._kinect,
-                                 'save_dir': save_dir
+                                 'save_dir': save_dir,
+                                 'take_difference': True
                              })
                 util.warning("Finished writing. Repositioning...")
                 writer.DipRetract()
@@ -208,6 +202,7 @@ def dot_four_corners(dim, pen):
     # strokes is an array of waypoints (x,y,z,z2,al,az)
     strokes = np.array([
         [[0, 0, 1.0, 0.0, 0.0, 0.0]],
+        [[dim-1, 0, -10.0, 0.0, 0.0, 0.0]],
         [[dim-1, 0, 1.0, 0.0, 0.0, 0.0]],
         [[dim-1, dim-1, 1.0, 0.0, 0.0, 0.0]],
         [[0, dim-1, 1.0, 0.0, 0.0, 0.0]]
@@ -279,3 +274,28 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+    
+        # # The ink that was there, will still be there.
+        # # The ink that were just added may or may not be there.
+        # points_on_stroke = {(p[0],p[1]) for p in stroke}
+
+        # diff = cur_stroke_img - prev_stroke_img
+        # pos_diff = np.where(diff!=1, diff, 0)  # because img is of type uint8,
+        #                                       # rather than having -255, we will have 1.
+
+        # structure = np.ones((3, 3), dtype=np.int)
+        # labeled, ncomponents = label(pos_diff, structure)
+        # indices = np.flip(np.indices(reversed(labeled.shape)).T[:,:,[0, 1]], axis=len(labeled.shape))
+        # best_size, best_comp = float('-inf'), None
+        # for i in range(ncomponents):
+        #     # Get the center of mass (based on indices) for this component
+        #     indices_for_component = indices[labeled==(i+1)]
+        #     size = len(indices_for_component)
+        #     if size > best_size:
+        #         best_comp = i+1
+        #         best_size = size
+        # stroke_img = np.copy(prev_stroke_img)
+        # stroke_img[labeled==best_comp] = 255
+        # return stroke_img

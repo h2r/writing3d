@@ -1,3 +1,4 @@
+import os
 import sys
 import math
 import writing3d.common as common
@@ -157,16 +158,16 @@ def downsample(arr1d, final_len):
 
 # Geometry
 def euc_dist(p1, p2):
-    return math.sqrt((p1.position.x - p2.position.x)**2
-                     + (p1.position.y - p2.position.y)**2
-                     + (p1.position.z - p2.position.z)**2)
+    return np.sqrt(np.sum((p1-p2)**2))
 
 def pose_close(p1, p2, r=0.005):
     """
     p1 and p2 are geometry_msgs/Pose objects. Returns true
     if their positions are within the given radius.
     """
-    dist = euc_dist(p1, p2)
+    dist = math.sqrt((p1.position.x - p2.position.x)**2
+                     + (p1.position.y - p2.position.y)**2
+                     + (p1.position.z - p2.position.z)**2)
     return dist <= 0.005
 
 # A vector is a tuple or array of two points (start, end), each
@@ -194,3 +195,43 @@ def intersect(l1, l2):
     p_int = point_along(p1, v1, t=t)
     return p_int    
 
+# Colors
+def n_rand_colors(n, ctype=1):
+    colors = []
+    while len(colors) < n:
+        colors = random_unique_color(colors)
+    return colors
+
+def random_unique_color(colors, ctype=1):
+    """
+    ctype=1: completely random
+    ctype=2: red random
+    ctype=3: blue random
+    ctype=4: green random
+    ctype=5: yellow random
+    """
+    if ctype == 1:
+        color = "#%06x" % random.randint(0x444444, 0x999999)
+        while color in colors:
+            color = "#%06x" % random.randint(0x444444, 0x999999)
+    elif ctype == 2:
+        color = "#%02x0000" % random.randint(0xAA, 0xFF)
+        while color in colors:
+            color = "#%02x0000" % random.randint(0xAA, 0xFF)
+    elif ctype == 4:  # green
+        color = "#00%02x00" % random.randint(0xAA, 0xFF)
+        while color in colors:
+            color = "#00%02x00" % random.randint(0xAA, 0xFF)
+    elif ctype == 3:  # blue
+        color = "#0000%02x" % random.randint(0xAA, 0xFF)
+        while color in colors:
+            color = "#0000%02x" % random.randint(0xAA, 0xFF)
+    elif ctype == 5:  # yellow
+        h = random.randint(0xAA, 0xFF)
+        color = "#%02x%02x00" % (h, h)
+        while color in colors:
+            h = random.randint(0xAA, 0xFF)
+            color = "#%02x%02x00" % (h, h)
+    else:
+        raise ValueError("Unrecognized color type %s" % (str(ctype)))
+    return color
