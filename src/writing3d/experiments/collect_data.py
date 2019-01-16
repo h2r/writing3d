@@ -99,12 +99,6 @@ class CollectData(threading.Thread):
             # If the component is bigger than 1% image, definitely keep it.
             if len(indices_for_component) > self._dimension*self._dimension * 0.001:  # only consider big ones
                 comps_kept.append(i)
-                # centroid = indices_for_component.mean(axis=0)
-                # avg_dist = np.mean([util.euc_dist(centroid, p)
-                #                     for p in points_on_stroke])
-                # if avg_dist < best_dist:
-                #     best_comp = i+1
-                #     best_dist = avg_dist
         stroke_img = np.copy(prev_stroke_img)
         for i in comps_kept:
             stroke_img[labeled==i+1] = 255
@@ -120,13 +114,13 @@ class CollectData(threading.Thread):
 
         util.info("Saving information after writing stroke %d" % stroke_indx)
         img = self._kinect.take_picture(hd=True)
+        self._gui.show_kinect_image(img)
         img_char = self._gui.extract_character_image(img_src=img, show_result=False)
 
         if take_difference:
             if len(self._gui.stroke_images) > 0:
                 img_char = self._produce_stroke_image_from_difference(
                     self._gui.stroke_images[-1], img_char, self._current_character[stroke_indx])
-        
         self._gui.add_stroke_image(img_char)
         self._gui.save_stroke_image(img_char, os.path.join(save_dir, "stroke-%d.bmp" % stroke_indx))
 
@@ -158,11 +152,11 @@ class CollectData(threading.Thread):
                 writer = CharacterWriter(character, pen=pens.SmallBrush,
                                          num_waypoints=10,  # should change to -1
                                          retract_after_stroke=True,
-                                         retract_scale=1)
+                                         retract_scale=0.5)
                 writer.print_character(res=40)
                 self._gui.set_writing_character(character)
                 self._gui.save_writing_character_image(os.path.join(save_dir, "image.bmp"))
-                # dip_pen(writer)
+                dip_pen(writer)
                 get_ready(writer)
                 writer.init_writers()
                 util.warning("Begin writing...")
@@ -264,6 +258,7 @@ def main():
         raise ValueError("Index out of bound. Valid range: 0 ~ %d" % (len(characters)))
 
     rospy.init_node("collect_writing_data", anonymous=True)
+    characters[0], characters[1] = characters[1], characters[0]
 
     if args.num_chars > 0:
         characters = characters[:args.num_chars]
@@ -274,28 +269,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-    
-        # # The ink that was there, will still be there.
-        # # The ink that were just added may or may not be there.
-        # points_on_stroke = {(p[0],p[1]) for p in stroke}
-
-        # diff = cur_stroke_img - prev_stroke_img
-        # pos_diff = np.where(diff!=1, diff, 0)  # because img is of type uint8,
-        #                                       # rather than having -255, we will have 1.
-
-        # structure = np.ones((3, 3), dtype=np.int)
-        # labeled, ncomponents = label(pos_diff, structure)
-        # indices = np.flip(np.indices(reversed(labeled.shape)).T[:,:,[0, 1]], axis=len(labeled.shape))
-        # best_size, best_comp = float('-inf'), None
-        # for i in range(ncomponents):
-        #     # Get the center of mass (based on indices) for this component
-        #     indices_for_component = indices[labeled==(i+1)]
-        #     size = len(indices_for_component)
-        #     if size > best_size:
-        #         best_comp = i+1
-        #         best_size = size
-        # stroke_img = np.copy(prev_stroke_img)
-        # stroke_img[labeled==best_comp] = 255
-        # return stroke_img

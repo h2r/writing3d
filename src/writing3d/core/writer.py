@@ -366,13 +366,6 @@ class CharacterWriter:
         self._client.send_and_execute_joint_space_goals_from_files(self._arm, [ready])
 
     def _Retract(self):
-        util.info2("Retracting...", debug_level=2)
-        # # move joints 3 and 5
-        # if self._retract_scale < 1.0 or self._retract_scale > 2.0:
-        #     raise ValueError("Invalid retract scale! Only accept float between 1.0 and 2.0 (inclusive). Got %s" % str(self._retract_scale))
-        # msg = movo_pp.angular_vel(indices=[3,5],
-        #                           new_vals=[-3.0, 5.0])
-        # movo_pp.pose_publisher(msg, arm=self.arm_side, rate=15, duration=2*self._retract_scale)  # will directly move joints
         retract = self._pen.retract_pose()
         self._client.send_and_execute_joint_space_goals_from_files(self._arm, [retract])
 

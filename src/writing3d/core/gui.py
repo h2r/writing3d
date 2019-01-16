@@ -377,10 +377,11 @@ class WritingGui(TkGui):
             util.warning("Kinect not set. Won't capture image periodically.",
                          debug_level=2)
             return
-            
+        
         img = self._kinect.take_picture(hd=self._hd)
-        self.show_kinect_image(img)
-        self._check_and_draw()
+        if img is not None:
+            self.show_kinect_image(img)
+            self._check_and_draw()
         self._root.after(int(self._take_picture_every*1000),
                          self.update_kinect_image_periodically)
 
