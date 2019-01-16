@@ -378,7 +378,6 @@ class WritingGui(TkGui):
             util.warning("Kinect not set. Won't capture image periodically.",
                          debug_level=2)
             return
-        
         img = self._kinect.take_picture(hd=self._hd)
         if img is not None:
             self.show_kinect_image(img)
@@ -393,11 +392,13 @@ class WritingGui(TkGui):
         """Calls the event function every `every` seconds"""
         def call_func():
             event_func(self, **params)
+            self._root.after(int(every*1000), call_func)
             
         if name in self._periodic_events:
             raise ValueError("Event %s is already registered!" % name)
+        self._periodic_events[name] = event_func
         call_func()
-        self._root.after(int(every*1000), call_func)
+        
 
     def _cond_set_top_left(self, event, x, y):
         return self.kinect_image_shown() is not None \
