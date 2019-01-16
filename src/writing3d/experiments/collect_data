@@ -35,6 +35,7 @@ import os
 import rospy
 import subprocess
 import numpy as np
+from scipy.ndimage.measurements import label
 import writing3d.common as common
 import writing3d.util as util
 from writing3d.robot.movo_vision import MovoKinectInterface
@@ -48,41 +49,107 @@ import argparse
 
 class CollectData(threading.Thread):
 
-    def __init__(self, characters, gui, kinect, save_dir, test_first=False):
+    def __init__(self, characters, dimension, gui, kinect, save_dir,
+                 pen=pens.SmallBrush, test_first=False):
         threading.Thread.__init__(self)
         self._characters = characters
+        self._current_character = None
+        self._dimension = dimension
         self._gui = gui
+        self._pen = pen
         self._kinect = kinect
         self._save_dir = save_dir
         self._done = False
         self._test_first = test_first
+
+
+    def _produce_stroke_image_from_difference(self,
+                                              prev_stroke_img,
+                                              cur_stroke_img,
+                                              stroke):
+        """This is not as easy as it seems, because there could
+        be arbitrarily random differences from the previous image
+        to the current image due to light reflection.
+
+        The way to produce the stroke image to use is that:
+        
+          Take the difference
+           -> Get the positive values
+           -> Cluster (connected components)
+           -> Eliminate all clusters except for the one with closest
+              average distance to all points on stroke.
+        
+        This is not a particularly efficient procedure but it will
+        benefit the network.
+        """
+        points_on_stroke = {(p[0],p[1]) for p in stroke}
+        
+        diff = img_char - gui.stroke_images[-1]
+        pos_diff = np.where(diff>0, diff, 0)
+
+        structure = np.ones((3, 3), dtype=np.int)
+        labeled, ncomponents = label(pos_diff, structure)
+        indices = np.flip(np.indices(reversed(labeled.shape)).T[:,:,[0, 1]], axis=len(labeled.shape))
+        best_dist, best_comp = float('inf'), None
+        for i in range(ncomponents):
+            # Get the center of mass (based on indices) for this component
+            indices_for_component = indicies[labeled==(i+1)]
+            centroid = indices_for_component.mean(axis=0)
+            avg_dist = np.mean([util.euc_dist(centroid, p)
+                                for p in points_on_stroke])
+            if avg_dist > best_dist:
+                best_comp = i
+                best_dist = avg_dist
+        stroke_img = np.copy(prev_stroke_img)
+        prev_stroke_img[labeled==best_comp] = 255
+        return stroke_img
+        
 
     def stroke_complete_cb(self, stroke_indx, **kwargs):
         gui = kwargs.get("gui", None)
         kinect = kwargs.get("kinect", None)
         # should be path to the directory for the character.
         save_dir = kwargs.get("save_dir", None)
+        # if true, the image for stroke i will be image for i-1 plus
+        # their difference.
+        take_difference = kwargs.get("take_difference", False)
 
         util.info("Saving information after writing stroke %d" % stroke_indx)
         img = kinect.take_picture(hd=True)
-        gui.show_kinect_image(img)
         img_char = gui.extract_character_image(img_src=img, show_result=False)
+
+        if take_difference:
+            if len(stroke_images) > 0:
+                # The ink that was there, will still be there.
+                # The ink that were just added AND within the range of the current
+                #    stroke will be there too.
+                #
+                # 
+                diff = img_char - gui.stroke_images[-1]
+                
+                
+                
+                diff[diff < 0] = 0
+                img_char = gui.
+        
         gui.add_stroke_image(img_char)
-        np.save(os.path.join(save_dir, "stroke-%d.npy" % stroke_indx),
-                img_char)
+        gui.save_stroke_image(img_char, "stroke-%d.bmp" % stroke_indx)
 
 
     def run(self):
         if self._done:
-            return
+            return        
         # write a test character
         if self._test_first:
+            # 1. Dip ink & 2. Dot on 4 corners
+            dot_four_corners(self._dimension, self._pen)
+            
             util.info2("Writing a character (below). Please specify bounding box in GUI.",
                        bold=True)
             self._gui.set_writing_character(self._characters[0])
             write_characters([self._characters[0]], retract_after_stroke=False)
-            util.info("Sleeping for 3 seconds. Confirm bounding box within this time.")
-            ropspy.sleep(3)
+            util.info("Sleeping for 20 seconds. Confirm bounding box within this time.")
+            ropspy.sleep(20)
         rospy.sleep(2)
 
         # 4. start collecting data
@@ -91,6 +158,7 @@ class CollectData(threading.Thread):
             save_dir = os.path.join(self._save_dir, "Character-%d" % i)
             if not os.path.exists(save_dir):
                 os.makedirs(save_dir, exist_ok=True)
+            self._current_character = character
             try:
                 writer = CharacterWriter(character, pen=pens.SmallBrush,
                                          num_waypoints=10,  # should change to -1
@@ -160,9 +228,6 @@ def dot_four_corners(dim, pen):
 def begin_procedure(characters, pen, dimension, save_dir,
                     test_first=False, gui_config_file=None):
 
-    # 1. Dip ink & 2. Dot on 4 corners
-    # dot_four_corners(dimension, pen)
-
     # 3. Start UI
     gui = WritingGui(hd=True)
     gui.init()
@@ -175,7 +240,7 @@ def begin_procedure(characters, pen, dimension, save_dir,
         if os.path.exists(gui_config_file):
             gui.load_config(gui_config_file)
 
-    task = CollectData(characters, gui, kinect, save_dir, test_first=test_first)
+    task = CollectData(characters, dimension, gui, kinect, save_dir, pen=pen, test_first=test_first)
     task.daemon = True
     task.start()
     gui.spin()

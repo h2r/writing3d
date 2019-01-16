@@ -156,14 +156,17 @@ def downsample(arr1d, final_len):
     return result
 
 # Geometry
+def euc_dist(p1, p2):
+    return math.sqrt((p1.position.x - p2.position.x)**2
+                     + (p1.position.y - p2.position.y)**2
+                     + (p1.position.z - p2.position.z)**2)
+
 def pose_close(p1, p2, r=0.005):
     """
     p1 and p2 are geometry_msgs/Pose objects. Returns true
     if their positions are within the given radius.
     """
-    dist = math.sqrt((p1.position.x - p2.position.x)**2
-                     + (p1.position.y - p2.position.y)**2
-                     + (p1.position.z - p2.position.z)**2)
+    dist = euc_dist(p1, p2)
     return dist <= 0.005
 
 # A vector is a tuple or array of two points (start, end), each
