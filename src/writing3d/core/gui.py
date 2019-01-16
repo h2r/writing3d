@@ -319,13 +319,16 @@ class WritingGui(TkGui):
 
     def _show_stroke_images(self):
         """All stroke images will be shown one next to each other on the top
-        of the screen. The `img` should be of size (self._cdim, self._cdim).
-        And since `img` is a stroke image, it is binary, where 0 = background
-        and 255 = ink."""
+        of the screen. Each one should be of size (self._cdim, self._cdim).
+        As a stroke image, it is binary, where 0 = background and 255 = ink."""
+        img_width = self._cdim*(self._box_scale/2.0)
+        num_img_per_row = int(self._width / img_width)
         for i in range(len(self._stroke_images)):
             img_display = self._stroke_images[i]
+            x_loc = (i % num_img_per_row) * img_width
+            y_loc = int(i / num_img_per_row) * img_width
             self.show_image("stroke-%d" % i,
-                            img_display, loc=(img_display.shape[0]*(self._box_scale/2.0)*(i-1), 0),
+                            img_display, loc=(x_loc, y_loc),
                             scale=self._box_scale/2.0, interpolation=cv2.INTER_NEAREST)
 
     def kinect_image_shown(self):
@@ -334,20 +337,20 @@ class WritingGui(TkGui):
     def save_config(self, path):
         with open(path, "w") as f:
             config = {
-                'top_left': self._top_left,
-                'top_right': self._top_right,
-                'bottom_left': self._bottom_left,
-                'bottom_right': self._bottom_right,
+                'top_left': tuple(self._top_left),
+                'top_right': tuple(self._top_right),
+                'bottom_left': tuple(self._bottom_left),
+                'bottom_right': tuple(self._bottom_right),
             }
             yaml.dump(config, f)
 
     def load_config(self, path):
         with open(path) as f:
             config = yaml.load(f)
-            self._top_left = config['top_left']
-            self._top_right = config['top_right']
-            self._bottom_left = config['bottom_left']
-            self._bottom_right = config['bottom_right']
+            self._top_left = np.array(config['top_left'])
+            self._top_right = np.array(config['top_right'])
+            self._bottom_left = np.array(config['bottom_left'])
+            self._bottom_right = np.array(config['bottom_right'])
 
     def set_config_file(self, path):
         self._config_file = path
@@ -568,14 +571,16 @@ class WritingGui(TkGui):
         
 
 def main():
+    import rospy
+    rospy.init_node("gui_test", anonymous=True)
     FILE = "../../../data/stroke.npy"
     characters = np.load(FILE)
     gui = WritingGui(hd=True)
     gui.init()
-    gui.set_writing_character(characters[0])
     kinect = MovoKinectInterface()
-    img = kinect.take_picture(hd=True)
-    gui.show_kinect_image(img)
+    gui.set_kinect(kinect, take_picture_every=0.5)
+    gui.update_kinect_image_periodically()
+    gui.set_writing_character(characters[0])
     gui.spin()
 
 
