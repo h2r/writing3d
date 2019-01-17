@@ -50,11 +50,13 @@ import argparse
 
 class CollectData():
 
-    def __init__(self, characters, dimension, gui, save_dir,
-                 pen=pens.SmallBrush, test_first=False):
+    def __init__(self, characters, sorted_cindx, dimension, gui, save_dir,
+                 pen=pens.SmallBrush, test_first=False, num_waypoints=-1):
         self._characters = characters
+        self._sorted_cindx = sorted_cindx
         self._current_character = None
         self._dimension = dimension
+        self._num_waypoints = num_waypoints
         self._gui = gui
         self._pen = pen
         self._save_dir = save_dir
@@ -144,7 +146,11 @@ class CollectData():
         rospy.sleep(2)
 
         # 4. start collecting data
-        for i, character in enumerate(self._characters):
+        for i in self._sorted_cindx:
+            if i < 33:
+                continue  # already obtained
+            
+            character = self._characters[i]
             util.info("Starting character writer...")
             save_dir = os.path.join(self._save_dir, "Character-%d" % i)
             if not os.path.exists(save_dir):
@@ -153,7 +159,7 @@ class CollectData():
             rospy.set_param("current_writing_character_index", i)
             try:
                 writer = CharacterWriter(character, pen=pens.SmallBrush,
-                                         num_waypoints=10,  # should change to -1
+                                         num_waypoints=self._num_waypoints,
                                          retract_after_stroke=True,
                                          retract_scale=0.5)
                 writer.print_character(res=40)
@@ -161,6 +167,7 @@ class CollectData():
                 self._gui.save_writing_character_image(os.path.join(save_dir, "image.bmp"))
                 dip_pen(writer)
                 get_ready(writer)
+                rospy.sleep(5) # use up some ink to lighten first strokes.
                 writer.init_writers()
                 util.warning("Begin writing...")
                 rospy.sleep(2)
@@ -221,10 +228,10 @@ def dip_retract(writer):
 def dot_four_corners(dim, pen):
     # strokes is an array of waypoints (x,y,z,z2,al,az)
     strokes = np.array([
-        [[0, 0, 1.0, 0.0, 0.0, 0.0]],
-        [[dim-1, 0, 1.0, 0.0, 0.0, 0.0]],
-        [[dim-1, dim-1, 1.0, 0.0, 0.0, 0.0]],
-        [[0, dim-1, 1.0, 0.0, 0.0, 0.0]]
+        [[0, 0, 0.5, 0.0, 0.0, 0.0]],
+        [[dim-1, 0, 0.5, 0.0, 0.0, 0.0]],
+        [[dim-1, dim-1, 0.5, 0.0, 0.0, 0.0]],
+        [[0, dim-1, 0.5, 0.0, 0.0, 0.0]]
     ])
     writer = CharacterWriter(strokes, pen=pen,
                              num_waypoints=-1,
@@ -240,13 +247,15 @@ def dot_four_corners(dim, pen):
 
 
 def begin_procedure(characters, pen, dimension, save_dir,
-                    test_first=False, gui_config_file=None):
+                    test_first=False, gui_config_file=None,
+                    num_waypoints=-1):
 
     # 3. Start UI  -- this gui will not display anything; it
     # just uses the WritingGui API and kinect to take images.
     fg = FakeGuiWrapper(gui_config_file)
     task = CollectData(characters, dimension, fg.gui, save_dir,
-                       pen=pen, test_first=test_first)
+                       pen=pen, test_first=test_first,
+                       num_waypoints=num_waypoints)
     p = Process(target=fg.run, args=())
     p.daemon = True
     p.start()
@@ -271,13 +280,21 @@ def main():
     parser.add_argument("-g", "--gui-config-file", type=str, help="Path to a file that stores gui config."
                         "If the file does not exist, when gui saves config, it will use this path.",
                         default=None)
+    parser.add_argument("--num-waypoints", help="Number of waypoints per stroke. Negative if NO downsample."\
+                        "default is -1", default=-1)
     args, _ = parser.parse_known_args()
     characters = np.load(args.chars_path)
     if args.num_chars >= len(characters):
         raise ValueError("Index out of bound. Valid range: 0 ~ %d" % (len(characters)))
 
+    # Write simplest characters first
+    stroke_lengths = [len(c) for c in characters]
+    import pdb; pdb.set_trace()
+    sorted_cindx = util.argsort(stroke_lengths)
+
     if args.num_chars > 0:
-        characters = characters[:args.num_chars]
+        sorted_cindx = sorted_cindx[:args.num_chars]
+        # characters = characters[:args.num_chars]
 
     gui_config_file_arg = ['-g', args.gui_config_file] \
                           if args.gui_config_file is not None else []
@@ -288,9 +305,10 @@ def main():
                                   args.save_dirpath,
                                   args.chars_path] + gui_config_file_arg)
     try:
-        begin_procedure(characters[:args.num_chars], pens.str_to_pen(args.pen),
+        begin_procedure(characters, sorted_cindx, pens.str_to_pen(args.pen),
                         args.dim, args.save_dirpath,
-                        test_first=args.test_first, gui_config_file=args.gui_config_file)
+                        test_first=args.test_first, gui_config_file=args.gui_config_file,
+                        num_waypoints=args.num_waypoints)
         p_ext_gui.wait()
     except KeyboardInterrupt:
         p_ext_gui.kill()
