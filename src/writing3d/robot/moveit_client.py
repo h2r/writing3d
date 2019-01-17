@@ -198,10 +198,15 @@ class MoveitClient:
         self.send_goal(group_name, goals[0],
                        done_cb=goal_sent)
         self._goal_indx = 1
-        while self.is_healthy() and \
-              ((self._goal_indx < len(goals) and not wait) \
-               or (not self._all_goals_done and wait)):
-            rospy.sleep(1)
+        try:
+            while self.is_healthy() and \
+                  ((self._goal_indx < len(goals) and not wait) \
+                   or (not self._all_goals_done and wait)):
+                rospy.sleep(1)
+        except KeyboardInterrupt as ex:
+            util.warning("Interrupted send_and_execute_goals...")
+            raise ex
+            
 
 
     def send_and_execute_joint_space_goals_from_files(self, group_name, paths,
@@ -257,8 +262,10 @@ def main():
     parser.add_argument('--state', help='Get robot state (joint values and pose)', action="store_true")
     args = parser.parse_args()
 
+    # regarding disable_signals, see:
+    # https://answers.ros.org/question/262560/rospy-isnt-catching-keyboardinterrupt-on-the-second-iteration-of-the-loop/
     rospy.init_node("moveit_movo_client",
-                    anonymous=True)
+                    anonymous=True, disable_signals=True)
 
     client = MoveitClient()
 

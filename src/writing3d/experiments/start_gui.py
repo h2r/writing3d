@@ -18,8 +18,12 @@ def update_stroke_images(gui, characters=None, chars_path=None):
         char_indx = rospy.get_param('current_writing_character_index')
         char_dir = "Character-%d" % char_indx
     else:
-        char_dir = sorted(os.listdir(chars_path))[-1]
-        char_indx = int(char_dir.split("-")[-1])
+        char_dirs = os.listdir(chars_path)
+        if len(char_dirs) > 0:
+            char_dir = sorted(char_dirs)[-1]
+            char_indx = int(char_dir.split("-")[-1])
+        else:
+            return
     if char_indx != CURRENT_CHAR_INDX:
         CURRENT_CHAR_INDX = char_indx
         gui.set_writing_character(characters[char_indx])

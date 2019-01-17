@@ -26,6 +26,7 @@ def pose_publisher(msg, arm="right", rate=1, duration=float('inf')):
     else:
         pub = rospy.Publisher("movo/%s_arm/angular_vel_cmd" % arm, JacoAngularVelocityCmd7DOF, queue_size=10)
     pub.publish(msg)
+    rospy.loginfo(msg)
     start = rospy.Time.now()
     d = rospy.Duration(duration) if duration < float('inf') else None
     while (duration >= float('inf')\

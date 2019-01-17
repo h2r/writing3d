@@ -34,24 +34,23 @@ common.DEBUG_LEVEL = 2
 
 class MovoKinectInterface:
 
-    def __init__(self):
+    def __init__(self, hd=True):
         self._image_taken = None
         self._cv_bridge = CvBridge()
-    
+        topic = "movo_camera/hd/image_color" if hd else "movo_camera/color/image_color_rect"
+        rospy.Subscriber(topic, sensor_msgs.msg.Image, self._get_picture)
+
+    def _get_picture(self, msg):
+        # The taken image is BGR but we need RGB for Tk.
+        self._image_taken = cv2.cvtColor(self._cv_bridge.imgmsg_to_cv2(msg, msg.encoding),
+                                         cv2.COLOR_BGR2RGB)
+        
     def take_picture(self, hd=True):
         """
         Returns an image taken from the kinect as an opencv image.
         Blocking call; Returns only when an image is obtained.
         """
-        
-        def get_picture(msg):
-            # The taken image is BGR but we need RGB for Tk.
-            self._image_taken = cv2.cvtColor(self._cv_bridge.imgmsg_to_cv2(msg, msg.encoding),
-                                             cv2.COLOR_BGR2RGB)
-
         util.info("Taking picture with Kinect", debug_level=3)
-        topic = "movo_camera/hd/image_color" if hd else "movo_camera/color/image_color_rect"
-        rospy.Subscriber(topic, sensor_msgs.msg.Image, get_picture)
         while self._image_taken is None:
             rospy.sleep(0.02)
         img = copy.deepcopy(self._image_taken)

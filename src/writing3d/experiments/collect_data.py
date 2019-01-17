@@ -127,7 +127,7 @@ class CollectData():
         if self._done:
             return        
         # write a test character
-        rospy.init_node("collect_writing_data")
+        rospy.init_node("collect_writing_data", anonymous=True, disable_signals=True)
 
         self._kinect = MovoKinectInterface()
         
@@ -199,7 +199,10 @@ class FakeGuiWrapper():
         return self._gui
 
     def run(self):
-        self._gui.spin()
+        try:
+            self._gui.spin()
+        except KeyboardInterrupt:
+            print("Terminating...")
 
         
 
@@ -278,16 +281,19 @@ def main():
 
     gui_config_file_arg = ['-g', args.gui_config_file] \
                           if args.gui_config_file is not None else []
-
+    
     p_ext_gui = subprocess.Popen(['rosrun',
                                   'writing3d',
                                   'start_gui.py',
                                   args.save_dirpath,
                                   args.chars_path] + gui_config_file_arg)
-    begin_procedure(characters[:args.num_chars], pens.str_to_pen(args.pen),
-                    args.dim, args.save_dirpath,
-                    test_first=args.test_first, gui_config_file=args.gui_config_file)
-    p_ext_gui.wait()
+    try:
+        begin_procedure(characters[:args.num_chars], pens.str_to_pen(args.pen),
+                        args.dim, args.save_dirpath,
+                        test_first=args.test_first, gui_config_file=args.gui_config_file)
+        p_ext_gui.wait()
+    except KeyboardInterrupt:
+        p_ext_gui.kill()
 
 if __name__ == "__main__":
     main()

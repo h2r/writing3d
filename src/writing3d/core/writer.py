@@ -350,10 +350,9 @@ class CharacterWriter:
     def DipPen(self):
         dip_high = common.goal_file("dip_high")
         dip_low = common.goal_file("dip_low")
-        dip_move = common.goal_file("dip_move")
         dip_retract = common.goal_file("dip_retract")
         goal_files = [
-            dip_high, dip_low, dip_move, dip_high, dip_retract
+            dip_high, dip_low, dip_high, dip_retract
         ]
         self._client.send_and_execute_joint_space_goals_from_files(self._arm, goal_files)
 
@@ -369,7 +368,7 @@ class CharacterWriter:
         util.info2("Retracting...")
         retract = self._pen.retract_pose()
         self._client.send_and_execute_joint_space_goals_from_files(self._arm, [retract])
-        rospy.sleep(3)
+        rospy.sleep(1)
 
     def Write(self, index=-1, method="together", stroke_complete_cb=None, cb_args=None):
         if len(self._strokes) != len(self._writers):

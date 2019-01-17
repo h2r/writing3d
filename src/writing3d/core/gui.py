@@ -89,10 +89,14 @@ class TkGui(object):
         del self._images[name]
 
     def spin(self):
-        if self._root:
-            self._root.mainloop()
-        else:
-            raise ValueError("tk root does not exist. Did you init GUI?")
+        try:
+            if self._root:
+                self._root.mainloop()
+            else:
+                raise ValueError("tk root does not exist. Did you init GUI?")
+        except KeyboardInterrupt as ex:
+            print("Terminating tk...")
+            raise ex
 
 
     def last_n_keys(self, n=1):
