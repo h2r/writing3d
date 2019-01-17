@@ -235,3 +235,9 @@ def random_unique_color(colors, ctype=1):
     else:
         raise ValueError("Unrecognized color type %s" % (str(ctype)))
     return color
+
+def argsort(seq, key=None):
+    # http://stackoverflow.com/questions/3071415/efficient-method-to-calculate-the-rank-vector-of-a-list-in-python
+    if key is None:
+        key = seq.__getitem__
+    return sorted(range(len(seq)), key=key)

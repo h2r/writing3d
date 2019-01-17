@@ -138,8 +138,8 @@ class StrokeWriter:
                 current_pose.position.y += wy
                 
                 if self._z_resolution is not None:
-                    # Force
-                    wz = z * self._z_resolution
+                    # Force; larger z means downward more, so reverse.
+                    wz = -z * self._z_resolution
                     if wz > self._z_max or wz < self._z_min:
                         util.warning("Movement in z %.3f is out of range (%.3f ~ %.3f)"
                                      % (wz, self._z_min, self._z_max))
@@ -451,7 +451,7 @@ def main():
     parser.add_argument("--retract-scale", type=float, help="How much you want to retract the arm after writing"\
                         "every stroke. Acceptable values: float between 1 to 2", default=1.0)
     args = parser.parse_args()
-    characters = np.load(args.path)
+    characters = np.load(args.path)    
     if args.index < 0:
         write_characters(characters, retract_after_stroke=(not args.continuous),
                          retract_scale=args.retract_scale)
