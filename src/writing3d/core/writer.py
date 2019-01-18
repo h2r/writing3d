@@ -140,6 +140,7 @@ class StrokeWriter:
                 if self._z_resolution is not None:
                     # Force; larger z means downward more, so reverse.
                     wz = -z * self._z_resolution
+                    # For security concerns:
                     if wz > self._z_max or wz < self._z_min:
                         util.warning("Movement in z %.3f is out of range (%.3f ~ %.3f)"
                                      % (wz, self._z_min, self._z_max))
@@ -345,6 +346,11 @@ class CharacterWriter:
         print("x range: %.3f (%.3f ~ %.3f)" % (np.ptp(xvals), np.min(xvals), np.max(xvals)))
         print("y range: %.3f (%.3f ~ %.3f)" % (np.ptp(yvals), np.min(yvals), np.max(yvals)))
         print("z range: %.3f (%.3f ~ %.3f)" % (np.ptp(zvals), np.min(zvals), np.max(zvals)))
+
+    def save_origin_pose(self, character_save_directory):
+        with open(os.path.join(character_save_directory, "origin_pose.yml")) as f:
+            yaml.dump(self._origin_pose, f)
+            util.success("Saved origin pose")
                     
     ### Actions that will lead to robot motion ###
     def DipPen(self):

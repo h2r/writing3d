@@ -25,6 +25,7 @@ import argparse
 import sensor_msgs.msg
 import writing3d.common as common
 import writing3d.util as util
+import writing3d.cores.pens as pens
 from writing3d.robot.movo_vision import MovoKinectInterface
 import Tkinter as tk
 from PIL import Image, ImageTk
@@ -250,6 +251,7 @@ class TkGui(object):
 #--- End TkGui ---#
 
 
+################### WritingGui #######################
 class WritingGui(TkGui):
 
     POINT_CIRCLE_RADIUS = 3
@@ -260,7 +262,10 @@ class WritingGui(TkGui):
     BOTTOM_LEFT_COLOR = (255, 255, 20)
     BOTTOM_RIGHT_COLOR = (0, 102, 255)
 
-    def __init__(self, character_dim=500, hd=True):
+    def __init__(self, character_dim=500,
+                 character_res=pens.Pen.CONFIG['RESOLUTION'],
+                 character_zres = pens.Pen.CONFIG['Z_RESOLUTION'],
+                 hd=True, is_fake=False):
         super(WritingGui, self).__init__()
         self._top_left = None  # (x, y) for top_left
         self._bottom_right = None  # (x, y) for bottom_right
@@ -268,8 +273,13 @@ class WritingGui(TkGui):
         self._bottom_left = None
         self._items = {}
         self._cdim = character_dim
+        self._cres = character_res
+        self._czres = character_zres
         self._writing_character = None
+        self._writing_character_index = None
+        self._writing_character_savedir = None
         self._stroke_images = []
+        self._is_fake = is_fake
         # counter clock wise
         self._corners_persp = None
         # Scaling
@@ -287,11 +297,15 @@ class WritingGui(TkGui):
     def stroke_images(self):
         return self._stroke_images
 
-    def set_writing_character(self, char):
+    def set_writing_character(self, char, index, char_dir=None):
         """Set the writing character. A char is a list of strokes which
         is a list of waypoints x,y,z,z2,al,az. The dimension of the
-        character should be equal to self._cdim"""
+        character should be equal to self._cdim.
+
+        `char_dir` is the directory for saved data for this character."""
         self._writing_character = char
+        self._writing_character_index = index
+        self._writing_character_savedir = save_dir
         self._stroke_images = [] # reset stroke images
 
     def save_writing_character_image(self, path):
@@ -485,7 +499,7 @@ class WritingGui(TkGui):
         if self._top_left is not None and self._top_right is not None\
            and self._bottom_left is not None and self._bottom_right is not None:
             self.extract_character_image(img_src=self._images[WritingGui.KINECT_IMAGE_NAME][0],
-                                         show_result=True)
+                                         show_result=not self._is_fake)
         self._show_stroke_images()
         
 
@@ -514,6 +528,55 @@ class WritingGui(TkGui):
                                    loc=(self._width, 0), anchor='ne', scale=self._box_scale)
         return img_dst
 
+    def _show_character_with_path(self, img):
+        """
+        `img` is a stroke image (binary, 0=empty, 255=ink). Display this image below
+        the remove_perspective()'s image, and display the robot's planned trajectory
+        for the strokes on top of this image.
+        """
+        img_th_display = np.copy(img)
+        img_th_display[img_th_display==0] = 128
+
+        if self._writing_character is not None:
+            # show the character on top of the currently extracted image. Resize if necessary
+            for stroke in self._writing_character:
+                for p in stroke:
+                    x, y = p[0], p[1]
+                    # Add 'double' thickness to this stroke (based on z)
+                    z = p[2] * 2
+                    img_th_display[int(round(y-z)):int(round(y+z)),
+                                   int(round(x-z)):int(round(x+z))] = 0
+
+            # Display the robot's planned trajactory for the strokes
+            if self._writing_character_savedir is not None\
+               and os.path.exists(self._writing_character_savedir):
+                if not os.path.exists(os.path.join(self._writing_character_savedir,
+                                                   "origin_pose.yml")):
+                    util.error("origin_pose.yml does not exist. Cannot display robot trajectory.")
+                else:
+                    with open(os.path.join(self._writing_character_savedir,
+                                           "origin_pose.yml")) as f:
+                        origin_pose = yaml.load(f)
+                    for fname in os.listdir(self._writing_character_savedir):
+                        if fname.startswith("stroke") and f.endswith("path.yml"):
+                            with open(os.path.join(self._writing_character_savedir, fname)) as f:
+                                stroke_path = yaml.load(f)
+                                for pose in stroke_path:
+                                    # go from world coordinates to image coordinates
+                                    wx = pose.pose.position.x - origin.pose.position.x
+                                    wy = pose.pose.position.y - origin.pose.position.y
+                                    wz = pose.pose.position.z - origin.pose.position.z
+                                    x = -wy / self._cres
+                                    y = -wx / self._cres
+                                    z = -wz / self._czres
+                                    img_th_display[int(round(y-z)):int(round(y+z)),
+                                                   int(round(x-z)):int(round(x+z))] = 80
+                    
+        size = self.show_image("char_extract", img_th_display,
+                               loc=(self._width,
+                                    img_th_display.shape[1]*self._box_scale),
+                               anchor='ne', scale=self._box_scale,
+                               interpolation=cv2.INTER_NEAREST)
 
     def _extract_character_helper(self, img, show_result=True):
         """
@@ -540,24 +603,7 @@ class WritingGui(TkGui):
 
         # Display
         if show_result:
-            img_th_display = np.copy(img_th)
-            img_th_display[img_th_display==0] = 100
-
-            if self._writing_character is not None:
-                # show the character on top of the currently extracted image. Resize if necessary
-                for stroke in self._writing_character:
-                    for p in stroke:
-                        x, y = p[0], p[1]
-                        # Add 'double' thickness to this stroke (based on z)
-                        z = p[2] * 2
-                        img_th_display[int(round(y-z)):int(round(y+z)),
-                                       int(round(x-z)):int(round(x+z))] = 0
-
-            size = self.show_image("char_extract", img_th_display,
-                                   loc=(self._width,
-                                        img_th_display.shape[1]*self._box_scale),
-                                   anchor='ne', scale=self._box_scale,
-                                   interpolation=cv2.INTER_NEAREST)
+            self._show_character_with_path(img_th)
         return img_th
     
 
@@ -601,7 +647,7 @@ def main():
     kinect = MovoKinectInterface()
     gui.set_kinect(kinect, take_picture_every=0.5)
     gui.update_kinect_image_periodically()
-    gui.set_writing_character(characters[0])
+    gui.set_writing_character(characters[0], 0)
     gui.spin()
 
 

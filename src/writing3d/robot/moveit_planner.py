@@ -7,16 +7,19 @@
 # See also:
 # https://github.com/h2r/ros_reality_bridge/blob/holocontrol_movo/scripts/moveit_movo.py
 
-import sys
+import os, sys
 import copy
 import rospy
 import moveit_commander
+import moveit_msgs.srv
 import moveit_msgs.msg
 import geometry_msgs.msg
+import std_msgs.msg
 import shape_msgs.msg
 import actionlib
 import copy
 import argparse
+import yaml
 
 from writing3d.msg import PlanMoveEEAction, PlanMoveEEGoal, PlanMoveEEResult, PlanMoveEEFeedback, \
     ExecMoveitPlanAction, ExecMoveitPlanGoal, ExecMoveitPlanResult, ExecMoveitPlanFeedback, \
@@ -79,6 +82,9 @@ class MoveitPlanner:
         self._exec_server.start()
         self._get_state_server.start()
 
+        rospy.wait_for_service("compute_fk")
+        self._compute_fk = rospy.ServiceProxy("compute_fk", moveit_msgs.srv.GetPositionFK)
+
         self._current_plan = {n:None for n in group_names}
         self._current_goal = {n:None for n in group_names}
         self._plan_type = None
@@ -97,6 +103,18 @@ class MoveitPlanner:
 
     def __del__(self):
         moveit_commander.roscpp_shutdown()
+
+    @classmethod
+    def compute_fk(self, ee_link, joint_names, joint_positions, base_frame="odom"):
+        """Given joint position, figure out the euclidean coordinates by
+        forward kinematics. Uses movo_group's compute_fk service."""
+        header = std_msgs.msg.Header(0, rospy.Time.now(), base_frame)
+        rs = moveit_msgs.msg.RobotState()
+        rs.joint_state.name = joint_names
+        rs.joint_state.position = joint_positions
+        ee_pose = self._compute_fk(header, [ee_link], rs)
+        return ee_pose
+        
 
     def plan(self, goal):
         group_name = goal.group_name
@@ -182,8 +200,25 @@ class MoveitPlanner:
         if goal.action == common.ActionType.EXECUTE:
             if self._plan_type == MoveitPlanner.PlanType.WAYPOINTS:
                 success = self._joint_groups[group_name].execute(self._current_plan[group_name])
+
+                if success and hasattr("character_index", goal):
+                    # We will save the cartesian trajectory of this stroke plan.
+                    plan = self._current_plan[group_name]  # moveit_msgs/RobotTrajectory
+                    joint_names = plan.joint_trajectory.joint_names
+                    euc_poses = []
+                    for p in plan.joint_trajectory.points:
+                        euc_poses.append(self._compute_fk(self._joint_groups[group_name].get_end_effector_link(),
+                                                          joint_names,
+                                                          p.positions,
+                                                          base_frame=self._joint_groups[group_name].get_pose_reference_frame()))
+                    with open(os.path.join(goal.character_save_directory,
+                                           "stroke-%d-path.yml" % goal.stroke_index)) as f:
+                        yaml.dump(euc_poses, f)
+                        util.success("Saved planned trajectory for stroke %d" % goal.stroke_index)
             else:
                 success = self._joint_groups[group_name].go(wait=goal.wait)
+
+            # Print status
             if success:
                 util.success("Plan for %s will execute." % group_name)
                 result.status = MoveitPlanner.Status.SUCCESS

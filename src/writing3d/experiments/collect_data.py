@@ -139,7 +139,7 @@ class CollectData():
             
             util.info2("Writing a character (below). Please specify bounding box in GUI.",
                        bold=True)
-            self._gui.set_writing_character(self._characters[0])
+            self._gui.set_writing_character(self._characters[0], 0)
             write_characters([self._characters[0]], retract_after_stroke=False)
             util.info("Sleeping for 20 seconds. Confirm bounding box within this time.")
             rospy.sleep(20)
@@ -163,7 +163,7 @@ class CollectData():
                                          retract_after_stroke=True,
                                          retract_scale=0.5)
                 writer.print_character(res=40)
-                self._gui.set_writing_character(character)
+                self._gui.set_writing_character(character, i, char_dir=save_dir)
                 self._gui.save_writing_character_image(os.path.join(save_dir, "image.bmp"))
                 dip_pen(writer)
                 get_ready(writer)
@@ -191,7 +191,7 @@ class CollectData():
 class FakeGuiWrapper():
     def __init__(self, gui_config_file=None):
         
-        self._gui = WritingGui(hd=True)
+        self._gui = WritingGui(hd=True, is_fake=True)
         self._gui.init()
         logo_img = cv2.cvtColor(cv2.imread("logo.jpg", cv2.IMREAD_UNCHANGED),
                                 cv2.COLOR_BGR2RGB)
@@ -246,14 +246,14 @@ def dot_four_corners(dim, pen):
     writer.DipRetract()
 
 
-def begin_procedure(characters, pen, dimension, save_dir,
+def begin_procedure(characters, sorted_cindx, pen, dimension, save_dir,
                     test_first=False, gui_config_file=None,
                     num_waypoints=-1):
 
     # 3. Start UI  -- this gui will not display anything; it
     # just uses the WritingGui API and kinect to take images.
     fg = FakeGuiWrapper(gui_config_file)
-    task = CollectData(characters, dimension, fg.gui, save_dir,
+    task = CollectData(characters, sorted_cindx, dimension, fg.gui, save_dir,
                        pen=pen, test_first=test_first,
                        num_waypoints=num_waypoints)
     p = Process(target=fg.run, args=())
@@ -289,7 +289,6 @@ def main():
 
     # Write simplest characters first
     stroke_lengths = [len(c) for c in characters]
-    import pdb; pdb.set_trace()
     sorted_cindx = util.argsort(stroke_lengths)
 
     if args.num_chars > 0:

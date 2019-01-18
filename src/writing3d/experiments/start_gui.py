@@ -26,7 +26,7 @@ def update_stroke_images(gui, characters=None, chars_path=None):
             return
     if char_indx != CURRENT_CHAR_INDX:
         CURRENT_CHAR_INDX = char_indx
-        gui.set_writing_character(characters[char_indx])
+        gui.set_writing_character(characters[char_indx], char_indx, char_dir=char_dir)
     stroke_img_files = []
     for f in sorted(os.listdir(os.path.join(chars_path, char_dir))):
         if f.startswith("stroke"):

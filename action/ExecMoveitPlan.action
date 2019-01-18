@@ -2,6 +2,10 @@
 string group_name
 uint32 action
 bool wait
+
+# params for stroke writing
+uint32 stroke_index
+string character_save_directory  # directory to save for one character
 ---
 uint32 status
 ---
