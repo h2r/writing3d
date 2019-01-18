@@ -232,7 +232,6 @@ class MoveitClient:
 
 # End of MoveitClient
             
-            
 
 def parse_waypoints_diffs(points):
     """points is a list of relative differences in x, y, z directions."""

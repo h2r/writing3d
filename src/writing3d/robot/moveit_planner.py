@@ -8,6 +8,7 @@
 # https://github.com/h2r/ros_reality_bridge/blob/holocontrol_movo/scripts/moveit_movo.py
 
 import os, sys
+import math
 import copy
 import rospy
 import moveit_commander
@@ -20,6 +21,8 @@ import actionlib
 import copy
 import argparse
 import yaml
+import tf
+import threading
 
 from writing3d.msg import PlanMoveEEAction, PlanMoveEEGoal, PlanMoveEEResult, PlanMoveEEFeedback, \
     ExecMoveitPlanAction, ExecMoveitPlanGoal, ExecMoveitPlanResult, ExecMoveitPlanFeedback, \
@@ -47,9 +50,38 @@ class MoveitPlanner:
         JOINT_SPACE = 2
         WAYPOINTS = 3
 
+    class ListenEEPose(threading.Thread):
+        def __init__(self, planner, group_name, tf_listener,
+                     base_frame="/odom", ee_frame="/right_ee_link"):
+            threading.Thread.__init__(self)
+            self._base_frame = base_frame
+            self._ee_frame = ee_frame
+            self.poses = []
+            self._tf_listener = tf_listener
+            self._planner = planner
+            self._group_name = group_name
+
+        def run(self):
+            try:
+                rate = rospy.Rate(100)
+                while self._planner._current_goal[self._group_name] is not None\
+                      and not rospy.is_shutdown():
+                    trans, rot = self._tf_listener.lookupTransform(self._base_frame,
+                                                                   self._ee_frame,
+                                                                   rospy.Time(0))
+                    self.poses.append(geometry_msgs.msg.Pose(
+                        geometry_msgs.msg.Point(*trans),
+                        geometry_msgs.msg.Quaternion(*rot)
+                    ))
+                    rate.sleep()
+                        
+            except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException) as ex:
+                raise ex
+                return
+
     def __init__(self, group_names, visualize_plan=True, robot_name="movo"):
 
-        # Initializing node
+        # Initializing npode
         util.info("Initializing moveit commander...")
         moveit_commander.roscpp_initialize(sys.argv)
 
@@ -88,6 +120,7 @@ class MoveitPlanner:
         self._current_plan = {n:None for n in group_names}
         self._current_goal = {n:None for n in group_names}
         self._plan_type = None
+        self._tf_listener = tf.TransformListener()
 
         # Print current joint positions
         for n in self._joint_groups:
@@ -198,27 +231,12 @@ class MoveitPlanner:
         result = ExecMoveitPlanResult()
         if goal.action == common.ActionType.EXECUTE:
             if self._plan_type == MoveitPlanner.PlanType.WAYPOINTS:
+                ee_frame = self._joint_groups[group_name].get_end_effector_link()
+                base_frame = self._joint_groups[group_name].get_pose_reference_frame()
+                eepl = MoveitPlanner.ListenEEPose(self, group_name, self._tf_listener,
+                                                  base_frame, ee_frame)
+                eepl.start()
                 success = self._joint_groups[group_name].execute(self._current_plan[group_name])
-
-                if success and goal.stroke_index >= 0:
-                    # We will save the cartesian trajectory of this stroke plan.
-                    try:
-                        char_dir = rospy.get_param("current_writing_character_save_dir")
-                        plan = self._current_plan[group_name]  # moveit_msgs/RobotTrajectory
-                        joint_names = plan.joint_trajectory.joint_names
-                        euc_poses = []
-                        for p in plan.joint_trajectory.points:
-                            ee_link = self._joint_groups[group_name].get_end_effector_link()
-                            frame = self._joint_groups[group_name].get_pose_reference_frame()
-                            euc_poses.append(self.compute_fk(ee_link,
-                                                             joint_names,
-                                                             p.positions,
-                                                             base_frame=frame))
-                        with open(os.path.join(char_dir, "stroke-%d-path.yml" % goal.stroke_index), 'w') as f:
-                            yaml.dump(euc_poses, f)
-                            util.success("Saved planned trajectory for stroke %d" % goal.stroke_index)
-                    except KeyError:
-                        pass
             else:
                 success = self._joint_groups[group_name].go(wait=goal.wait)
 
@@ -229,14 +247,28 @@ class MoveitPlanner:
                 rospy.sleep(1)
             else:
                 util.error("Plan for %s will NOT execute. Is there a collision?" % group_name)
-                result.status = MoveitPlanner.Status.ABORTED
+                result.status = MoveitPlanner.Status.ABORTED                
+
             self.cancel_goal(group_name)  # get rid of this goal since we have completed it
+            if self._plan_type == MoveitPlanner.PlanType.WAYPOINTS\
+                   and goal.stroke_index >= 0:
+                try:
+                    util.info("Saving stroke path")
+                    char_dir = rospy.get_param("current_writing_character_save_dir")
+                    eepl.join()
+                    euc_poses = eepl.poses
+                    with open(os.path.join(char_dir, "stroke-%d-path.yml" % goal.stroke_index), 'w') as f:
+                        yaml.dump(euc_poses, f)
+                        util.success("Saved planned trajectory for stroke %d" % goal.stroke_index)
+                except KeyError:
+                    pass
+                
             util.info("Now %s is at pose:\n%s" % (group_name,
                                                   self._joint_groups[group_name].get_current_pose().pose))
             self._exec_server.set_succeeded(result)
                 
         elif goal.action == common.ActionType.CANCEL:
-            self.cancel_goal(group_name)
+            self.cancel_goal(group_name)            
             result.status = MoveitPlanner.Status.SUCCESS 
             self._exec_server.set_succeeded(result)
             

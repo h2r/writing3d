@@ -536,17 +536,17 @@ class WritingGui(TkGui):
         for the strokes on top of this image.
         """
         img_th_display = np.copy(img)
-        img_th_display[img_th_display==0] = 180
+        img_th_display[img_th_display==0] = 70
 
         if self._writing_character is not None:
             # show the character on top of the currently extracted image. Resize if necessary
-            for stroke in self._writing_character:
-                for p in stroke:
-                    x, y = p[0], p[1]
-                    # Add 'double' thickness to this stroke (based on z)
-                    z = p[2] * 2
-                    img_th_display[int(round(y-z)):int(round(y+z)),
-                                   int(round(x-z)):int(round(x+z))] = 0
+            # for stroke in self._writing_character:
+            #     for p in stroke:
+            #         x, y = p[0], p[1]
+            #         # Add 'double' thickness to this stroke (based on z)
+            #         z = p[2] * 2
+            #         img_th_display[int(round(y-z)):int(round(y+z)),
+            #                        int(round(x-z)):int(round(x+z))] = 0
 
             # Display the robot's planned trajactory for the strokes
             if self._writing_character_savedir is not None\
@@ -568,12 +568,12 @@ class WritingGui(TkGui):
                                     wx = pose.position.x - origin_pose.position.x
                                     wy = pose.position.y - origin_pose.position.y
                                     wz = pose.position.z - origin_pose.position.z
-                                    import pdb; pdb.set_trace()
                                     x = -wy / self._cres
                                     y = -wx / self._cres
+                                    z = 5
                                     # z = -wz / self._czres
                                     img_th_display[int(round(y-z)):int(round(y+z)),
-                                                   int(round(x-z)):int(round(x+z))] = 80
+                                                   int(round(x-z)):int(round(x+z))] = 0
                     
         size = self.show_image("char_extract", img_th_display,
                                loc=(self._width,

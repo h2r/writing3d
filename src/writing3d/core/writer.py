@@ -140,6 +140,12 @@ class StrokeWriter:
                 wy = -x * self._resolution
                 current_pose.position.x += wx
                 current_pose.position.y += wy
+
+                # # For debugging
+                # dwx = current_pose.position.x - self._origin_pose.position.x
+                # dwy = current_pose.position.y - self._origin_pose.position.y
+                # dx = -dwy / self._resolution
+                # dy = -dwx / self._resolution
                 
                 if self._z_resolution is not None:
                     # Force; larger z means downward more, so reverse.
