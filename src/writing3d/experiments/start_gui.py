@@ -7,6 +7,7 @@ import argparse
 import os
 from writing3d.core.gui import WritingGui
 from writing3d.robot.movo_vision import MovoKinectInterface
+import writing3d.core.pens as pens
 
 CURRENT_CHAR_INDX = ""
 
@@ -26,10 +27,10 @@ def update_stroke_images(gui, characters=None, chars_path=None):
             return
     if char_indx != CURRENT_CHAR_INDX:
         CURRENT_CHAR_INDX = char_indx
-        gui.set_writing_character(characters[char_indx], char_indx, char_dir=char_dir)
+        gui.set_writing_character(characters[char_indx], char_indx, char_dir=os.path.join(chars_path, char_dir))
     stroke_img_files = []
     for f in sorted(os.listdir(os.path.join(chars_path, char_dir))):
-        if f.startswith("stroke"):
+        if f.startswith("stroke") and not f.endswith("-path.yml"):
             stroke_img_files.append(f)
     if len(gui.stroke_images) != len(stroke_img_files):
         for i in range(len(gui.stroke_images), len(stroke_img_files)):
@@ -38,8 +39,11 @@ def update_stroke_images(gui, characters=None, chars_path=None):
             gui.add_stroke_image(img)
 
 
-def run_gui(chars_path, characters, gui_config_file=None):
-    gui = WritingGui(hd=True)
+def run_gui(chars_path, characters, gui_config_file=None,
+            pen=pens.SmallBrush):
+    gui = WritingGui(hd=True,
+                     character_res=pen.CONFIG['RESOLUTION'],
+                     character_zres=pen.CONFIG['Z_RESOLUTION'])
     gui.init()
     kinect = MovoKinectInterface()
     gui.set_kinect(kinect)
@@ -68,12 +72,15 @@ def main():
     parser.add_argument("-g", "--gui-config-file", type=str, help="Path to a file that stores gui config."
                         "If the file does not exist, when gui saves config, it will use this path.",
                         default=None)
+    parser.add_argument("-p", "--pen", type=str, help="Type of pen to use. See pens.py",
+                        default=pens.SmallBrush.name())
     args = parser.parse_args()
     characters = np.load(args.chars_data_path)
 
     rospy.init_node("writing_gui", anonymous=True)
     
-    run_gui(args.chars_dir, characters, args.gui_config_file)
+    run_gui(args.chars_dir, characters, args.gui_config_file,
+            pen=pens.str_to_pen(args.pen))
 
 if __name__ == "__main__":
     main()

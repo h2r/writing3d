@@ -127,12 +127,14 @@ class MoveitClient:
             util.error("pose type not understood. Goal unsent.")
             
 
-    def execute_plan(self, group_name, wait=True, done_cb=None):
+    def execute_plan(self, group_name, wait=True, done_cb=None, exec_args={}):
         util.info("Executing plan for %s" % group_name)
         goal = ExecMoveitPlanGoal()
         goal.wait = wait
         goal.action = ActionType.EXECUTE
         goal.group_name = group_name
+        for attr in exec_args:
+            setattr(goal, attr, exec_args[attr])
         self._exec_client.send_goal(goal, done_cb=done_cb)
         self._exec_client.wait_for_result(rospy.Duration.from_sec(5.0))
 
@@ -154,7 +156,7 @@ class MoveitClient:
             util.error("Client didn't hear from Server in %s seconds." % str(wait_time))
             self._internal_status = MoveitClient.Status.FAILING
 
-    def send_and_execute_goals(self, group_name, goals, wait=True):
+    def send_and_execute_goals(self, group_name, goals, wait=True, exec_args={}):
         """
         Send and execute a sequence of goals, one by one. 
 
@@ -169,7 +171,7 @@ class MoveitClient:
         
         def goal_sent(status, result):
             if result.status == MoveitPlanner.Status.SUCCESS:
-                self.execute_plan(group_name, done_cb=executing)
+                self.execute_plan(group_name, done_cb=executing, exec_args=exec_args)
             else:
                 util.error("Oops. Something went wrong :(")
                 self._internal_status = MoveitClient.Status.FAILING

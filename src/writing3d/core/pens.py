@@ -48,6 +48,10 @@ class Pen:
         print("%s:" % cls.__name__)
         pprint(cls.CONFIG)
 
+    @classmethod
+    def uses_orientation(cls):
+        return False
+
 class SmallBrush(Pen):
     CONFIG = {
         "RESOLUTION": 0.0002,
@@ -68,6 +72,11 @@ class SmallBrush(Pen):
     @classmethod
     def retract_pose(cls):
         return common.goal_file("retract_joint_pose_brush_small")
+
+    @classmethod
+    def uses_orientation(cls):
+        return False
+
 
 class Sharpe:
     CONFIG = {

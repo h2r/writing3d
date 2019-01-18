@@ -25,7 +25,7 @@ import argparse
 import sensor_msgs.msg
 import writing3d.common as common
 import writing3d.util as util
-import writing3d.cores.pens as pens
+import writing3d.core.pens as pens
 from writing3d.robot.movo_vision import MovoKinectInterface
 import Tkinter as tk
 from PIL import Image, ImageTk
@@ -264,7 +264,7 @@ class WritingGui(TkGui):
 
     def __init__(self, character_dim=500,
                  character_res=pens.Pen.CONFIG['RESOLUTION'],
-                 character_zres = pens.Pen.CONFIG['Z_RESOLUTION'],
+                 character_zres=pens.Pen.CONFIG['Z_RESOLUTION'],
                  hd=True, is_fake=False):
         super(WritingGui, self).__init__()
         self._top_left = None  # (x, y) for top_left
@@ -305,7 +305,7 @@ class WritingGui(TkGui):
         `char_dir` is the directory for saved data for this character."""
         self._writing_character = char
         self._writing_character_index = index
-        self._writing_character_savedir = save_dir
+        self._writing_character_savedir = char_dir
         self._stroke_images = [] # reset stroke images
 
     def save_writing_character_image(self, path):
@@ -500,7 +500,8 @@ class WritingGui(TkGui):
            and self._bottom_left is not None and self._bottom_right is not None:
             self.extract_character_image(img_src=self._images[WritingGui.KINECT_IMAGE_NAME][0],
                                          show_result=not self._is_fake)
-        self._show_stroke_images()
+        if not self._is_fake:
+            self._show_stroke_images()
         
 
     def extract_character_image(self, img_src=None, show_result=False):
@@ -535,7 +536,7 @@ class WritingGui(TkGui):
         for the strokes on top of this image.
         """
         img_th_display = np.copy(img)
-        img_th_display[img_th_display==0] = 128
+        img_th_display[img_th_display==0] = 180
 
         if self._writing_character is not None:
             # show the character on top of the currently extracted image. Resize if necessary
@@ -552,23 +553,25 @@ class WritingGui(TkGui):
                and os.path.exists(self._writing_character_savedir):
                 if not os.path.exists(os.path.join(self._writing_character_savedir,
                                                    "origin_pose.yml")):
-                    util.error("origin_pose.yml does not exist. Cannot display robot trajectory.")
+                    util.error("origin_pose.yml does not exist. Cannot display robot trajectory.",
+                               debug_level=3)
                 else:
                     with open(os.path.join(self._writing_character_savedir,
                                            "origin_pose.yml")) as f:
                         origin_pose = yaml.load(f)
                     for fname in os.listdir(self._writing_character_savedir):
-                        if fname.startswith("stroke") and f.endswith("path.yml"):
+                        if fname.startswith("stroke") and fname.endswith("path.yml"):
                             with open(os.path.join(self._writing_character_savedir, fname)) as f:
                                 stroke_path = yaml.load(f)
                                 for pose in stroke_path:
                                     # go from world coordinates to image coordinates
-                                    wx = pose.pose.position.x - origin.pose.position.x
-                                    wy = pose.pose.position.y - origin.pose.position.y
-                                    wz = pose.pose.position.z - origin.pose.position.z
+                                    wx = pose.position.x - origin_pose.position.x
+                                    wy = pose.position.y - origin_pose.position.y
+                                    wz = pose.position.z - origin_pose.position.z
+                                    import pdb; pdb.set_trace()
                                     x = -wy / self._cres
                                     y = -wx / self._cres
-                                    z = -wz / self._czres
+                                    # z = -wz / self._czres
                                     img_th_display[int(round(y-z)):int(round(y+z)),
                                                    int(round(x-z)):int(round(x+z))] = 80
                     

@@ -4,7 +4,7 @@
 # to robot motion
 
 import matplotlib.pyplot as plt
-import sys
+import os, sys
 import rospy
 import copy
 import numpy as np
@@ -32,12 +32,13 @@ class StrokeWriter:
         DRAWING = 1
         COMPLETED = 2
 
-    def __init__(self, stroke, client, dimension=500, pen=pens.SmallBrush,
+    def __init__(self, stroke, stroke_index, client, dimension=500, pen=pens.SmallBrush,
                  robot_name="movo", arm="right_arm", origin_pose=None, num_waypoints=5,
                  resolution=None, z_resolution=None, z_min=None, z_max=None):
                  
         """
         stroke (np.array) array of waypoints (x, y, z, z2, altitude, azimuth)
+        strok_index (int) index of the stroke in the character that it belongs to.
         dimension (int) dimension of a character's image (default. 500 pixles)
         pen (pens.Pen) a type of pen. Its configuration overrides the other
                        provided parameters (e.g. resolution, z_min, etc.)
@@ -51,6 +52,9 @@ class StrokeWriter:
         z_max (float) the maximum relative z-coordinate the end 
         """
         self._stroke = stroke
+        self._stroke_index = stroke_index
+        print(self._stroke_index)
+        print(type(self._stroke_index))
         self._dimension = dimension
         if pen is not None:
             self._pen = pen
@@ -147,16 +151,17 @@ class StrokeWriter:
                         wz = max(min(wz, self._z_max), self._z_min)
                     current_pose.position.z += wz
 
-                    # # Orientation; (unused for now)
-                    # current_orien = euler_from_quaternion([
-                    #     current_pose.orientation.x,
-                    #     current_pose.orientation.y,
-                    #     current_pose.orientation.z,
-                    #     current_pose.orientation.w,
-                    # ])
-                    # current_pose.orientation = geometry_msgs.msg.Quaternion(*quaternion_from_euler(current_orien[0] + math.radians(az),
-                    #                                                                                current_orien[1] + math.radians(al),
-                    #                                                                                current_orien[2])) # roll, pitch, yaw
+                    # Orientation; (unused for now)
+                    if self._pen.uses_orientation():
+                        current_orien = euler_from_quaternion([
+                            current_pose.orientation.x,
+                            current_pose.orientation.y,
+                            current_pose.orientation.z,
+                            current_pose.orientation.w,
+                        ])
+                        current_pose.orientation = geometry_msgs.msg.Quaternion(*quaternion_from_euler(current_orien[0] + math.radians(az),
+                                                                                                       current_orien[1] + math.radians(al),
+                                                                                                       current_orien[2])) # roll, pitch, yaw
                 waypoints.append(current_pose)
 
             self._waypoints = waypoints
@@ -187,11 +192,17 @@ class StrokeWriter:
             return
 
         self._status = StrokeWriter.Status.DRAWING
+        exec_args = {
+            "stroke_index": self._stroke_index
+        }
         if method == "together":
-            self._client.send_and_execute_goals(self._arm, [self._waypoints], wait=True)
+            self._client.send_and_execute_goals(self._arm, [self._waypoints], wait=True,
+                                                exec_args=exec_args)
         elif method == "separate":
-            self._client.send_and_execute_goals(self._arm, self._waypoints, wait=True)
+            self._client.send_and_execute_goals(self._arm, self._waypoints, wait=True,
+                                                exec_args=exec_args)
         self._status = StrokeWriter.Status.COMPLETED
+
 
     def done(self):
         """Returns true if done drawing"""
@@ -242,7 +253,9 @@ class CharacterWriter:
         to begin writing for a particular type of pen."""
         for i in range(len(self._strokes)):
             util.info("Initializing writer for stroke %d" % i)
-            self._writers.append(StrokeWriter(self._strokes[i], self._client, pen=self._pen,
+            stroke_index = (i-1) if self._blank_stroke_first else i
+            self._writers.append(StrokeWriter(self._strokes[i], stroke_index,
+                                              self._client, pen=self._pen,
                                               dimension=self._dimension,
                                               robot_name=self._robot_name, arm=self._arm,
                                               num_waypoints=self._num_waypoints, origin_pose=self._origin_pose))
@@ -348,9 +361,12 @@ class CharacterWriter:
         print("z range: %.3f (%.3f ~ %.3f)" % (np.ptp(zvals), np.min(zvals), np.max(zvals)))
 
     def save_origin_pose(self, character_save_directory):
-        with open(os.path.join(character_save_directory, "origin_pose.yml")) as f:
-            yaml.dump(self._origin_pose, f)
-            util.success("Saved origin pose")
+        if os.path.exists(character_save_directory):
+            with open(os.path.join(character_save_directory, "origin_pose.yml"), "w") as f:
+                yaml.dump(self._origin_pose, f)
+                util.success("Saved origin pose")
+        else:
+            util.warning("%s does not exist. origin pose is not saved." % character_save_directory)
                     
     ### Actions that will lead to robot motion ###
     def DipPen(self):

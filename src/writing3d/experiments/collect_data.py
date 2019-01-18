@@ -147,9 +147,6 @@ class CollectData():
 
         # 4. start collecting data
         for i in self._sorted_cindx:
-            if i < 33:
-                continue  # already obtained
-            
             character = self._characters[i]
             util.info("Starting character writer...")
             save_dir = os.path.join(self._save_dir, "Character-%d" % i)
@@ -157,18 +154,20 @@ class CollectData():
                 os.makedirs(save_dir)
             self._current_character = character
             rospy.set_param("current_writing_character_index", i)
+            rospy.set_param("current_writing_character_save_dir", save_dir)
             try:
-                writer = CharacterWriter(character, pen=pens.SmallBrush,
+                writer = CharacterWriter(character, pen=self._pen,
                                          num_waypoints=self._num_waypoints,
                                          retract_after_stroke=True,
                                          retract_scale=0.5)
                 writer.print_character(res=40)
                 self._gui.set_writing_character(character, i, char_dir=save_dir)
                 self._gui.save_writing_character_image(os.path.join(save_dir, "image.bmp"))
-                dip_pen(writer)
+                # dip_pen(writer)
                 get_ready(writer)
                 rospy.sleep(5) # use up some ink to lighten first strokes.
                 writer.init_writers()
+                writer.save_origin_pose(save_dir)
                 util.warning("Begin writing...")
                 rospy.sleep(2)
                 writer.Write(stroke_complete_cb=self.stroke_complete_cb,
@@ -186,12 +185,16 @@ class CollectData():
                 print("Exception! %s" % ex)
                 import traceback
                 traceback.print_exc()
+            finally:
+                rospy.delete_param("current_writing_character_index")
+                rospy.delete_param("current_writing_character_save_dir")
         self._done = True
 
 class FakeGuiWrapper():
-    def __init__(self, gui_config_file=None):
-        
-        self._gui = WritingGui(hd=True, is_fake=True)
+    def __init__(self, gui_config_file=None, pen=pens.SmallBrush):
+        self._gui = WritingGui(hd=True, is_fake=True,
+                               character_res=pen.CONFIG['RESOLUTION'],
+                               character_zres=pen.CONFIG['Z_RESOLUTION'])
         self._gui.init()
         logo_img = cv2.cvtColor(cv2.imread("logo.jpg", cv2.IMREAD_UNCHANGED),
                                 cv2.COLOR_BGR2RGB)
@@ -252,7 +255,7 @@ def begin_procedure(characters, sorted_cindx, pen, dimension, save_dir,
 
     # 3. Start UI  -- this gui will not display anything; it
     # just uses the WritingGui API and kinect to take images.
-    fg = FakeGuiWrapper(gui_config_file)
+    fg = FakeGuiWrapper(gui_config_file, pen=pen)
     task = CollectData(characters, sorted_cindx, dimension, fg.gui, save_dir,
                        pen=pen, test_first=test_first,
                        num_waypoints=num_waypoints)
@@ -302,7 +305,8 @@ def main():
                                   'writing3d',
                                   'start_gui.py',
                                   args.save_dirpath,
-                                  args.chars_path] + gui_config_file_arg)
+                                  args.chars_path,
+                                  '-p', args.pen] + gui_config_file_arg)
     try:
         begin_procedure(characters, sorted_cindx, pens.str_to_pen(args.pen),
                         args.dim, args.save_dirpath,
