@@ -23,6 +23,7 @@ import argparse
 import yaml
 import tf
 import threading
+import numpy as np
 
 from writing3d.msg import PlanMoveEEAction, PlanMoveEEGoal, PlanMoveEEResult, PlanMoveEEFeedback, \
     ExecMoveitPlanAction, ExecMoveitPlanGoal, ExecMoveitPlanResult, ExecMoveitPlanFeedback, \
@@ -56,10 +57,14 @@ class MoveitPlanner:
             threading.Thread.__init__(self)
             self._base_frame = base_frame
             self._ee_frame = ee_frame
-            self.poses = []
+            self._poses = []
+            self._timestamps = []
             self._tf_listener = tf_listener
             self._planner = planner
             self._group_name = group_name
+
+        def get_poses(self):
+            return self._poses
 
         def run(self):
             try:
@@ -69,14 +74,13 @@ class MoveitPlanner:
                     trans, rot = self._tf_listener.lookupTransform(self._base_frame,
                                                                    self._ee_frame,
                                                                    rospy.Time(0))
-                    self.poses.append(geometry_msgs.msg.Pose(
+                    self._poses.append(geometry_msgs.msg.Pose(
                         geometry_msgs.msg.Point(*trans),
                         geometry_msgs.msg.Quaternion(*rot)
                     ))
                     rate.sleep()
                         
             except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException) as ex:
-                raise ex
                 return
 
     def __init__(self, group_names, visualize_plan=True, robot_name="movo"):
@@ -117,6 +121,7 @@ class MoveitPlanner:
         rospy.wait_for_service("compute_fk")
         self._moveit_fk = rospy.ServiceProxy("compute_fk", moveit_msgs.srv.GetPositionFK)
 
+        self._waypoints = {n:[] for n in group_names}
         self._current_plan = {n:None for n in group_names}
         self._current_goal = {n:None for n in group_names}
         self._plan_type = None
@@ -209,9 +214,11 @@ class MoveitPlanner:
         util.info("Generating waypoints plan for %s" % (group_name))
         
         current_pose = self._joint_groups[group_name].get_current_pose().pose
-        waypoints = goal.waypoints #[current_pose] + 
+        waypoints = goal.waypoints #[current_pose] +
+        self._waypoints[group_name] = waypoints
         self._current_plan[group_name], fraction = self._joint_groups[group_name].compute_cartesian_path(waypoints, 0.01, 0.0)
         result = PlanWaypointsResult()
+
         if len(self._current_plan[group_name].joint_trajectory.points) > 0:
             util.success("A plan has been made (%d points). See it in RViz [check Show Trail and Show Collisions]"
                          % len(self._current_plan[group_name].joint_trajectory.points))
@@ -256,10 +263,12 @@ class MoveitPlanner:
                     util.info("Saving stroke path")
                     char_dir = rospy.get_param("current_writing_character_save_dir")
                     eepl.join()
-                    euc_poses = eepl.poses
-                    with open(os.path.join(char_dir, "stroke-%d-path.yml" % goal.stroke_index), 'w') as f:
-                        yaml.dump(euc_poses, f)
-                        util.success("Saved planned trajectory for stroke %d" % goal.stroke_index)
+                    print(len(self._waypoints[group_name]))
+                    if len(self._waypoints[group_name]) > 1: 
+                        euc_poses = eepl.get_poses()
+                        with open(os.path.join(char_dir, "stroke-%d-path.yml" % goal.stroke_index), 'w') as f:
+                            yaml.dump(euc_poses, f)
+                            util.success("Saved planned trajectory for stroke %d" % goal.stroke_index)
                 except KeyError:
                     pass
                 

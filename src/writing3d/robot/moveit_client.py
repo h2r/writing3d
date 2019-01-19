@@ -193,7 +193,7 @@ class MoveitClient:
                 util.info("Waiting for goal to be executed...")
                 rospy.sleep(1)
                 self.get_state(group_name, check_completed)
-                
+
         self._all_goals_done = False
                 
         util.info("Sending goal [0]", bold=True)

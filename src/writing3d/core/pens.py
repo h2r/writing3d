@@ -58,7 +58,7 @@ class SmallBrush(Pen):
         "Z_RESOLUTION": 0.003,
         "Z_MIN": -0.15,  # This depends on the size of the pen
         "Z_MAX": -0.004,
-        "Z_LIFT": 0.03,
+        "Z_LIFT": 0.05,
     }
     
     @classmethod

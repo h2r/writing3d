@@ -163,7 +163,7 @@ class CollectData():
                 writer.print_character(res=40)
                 self._gui.set_writing_character(character, i, char_dir=save_dir)
                 self._gui.save_writing_character_image(os.path.join(save_dir, "image.bmp"))
-                dip_pen(writer)
+                # dip_pen(writer)
                 get_ready(writer)
                 rospy.sleep(5) # use up some ink to lighten first strokes.
                 writer.init_writers()
@@ -292,7 +292,8 @@ def main():
 
     # Write simplest characters first
     stroke_lengths = [len(c) for c in characters]
-    sorted_cindx = util.argsort(stroke_lengths)
+    # sorted_cindx = util.argsort(stroke_lengths)
+    sorted_cindx = [i for i in range(0, len(stroke_lengths))]
 
     if args.num_chars > 0:
         sorted_cindx = sorted_cindx[:args.num_chars]

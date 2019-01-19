@@ -53,8 +53,6 @@ class StrokeWriter:
         """
         self._stroke = stroke
         self._stroke_index = stroke_index
-        print(self._stroke_index)
-        print(type(self._stroke_index))
         self._dimension = dimension
         if pen is not None:
             self._pen = pen
@@ -70,7 +68,6 @@ class StrokeWriter:
             self._z_min = z_min
             self._z_max = z_max
         self._waypoints = None
-        self._draw_indx = 0  # for drawing method "separate"
         self._arm = arm
         self._origin_pose = origin_pose
         self._num_waypoints = num_waypoints
@@ -189,7 +186,7 @@ class StrokeWriter:
                 self._print_waypoint_stats()
             
 
-    def Draw(self, method="together"):
+    def Draw(self, method="separate"):
         """
         method can be "together" or "separate".
         """
@@ -201,11 +198,23 @@ class StrokeWriter:
         exec_args = {
             "stroke_index": self._stroke_index
         }
-        if method == "together":
-            self._client.send_and_execute_goals(self._arm, [self._waypoints], wait=True,
+        if len(self._waypoints) == 1:
+            method = "together"
+
+        print(method)
+        
+        if method == "separate":
+            util.info2("first.")
+            self._client.send_and_execute_goals(self._arm, [[self._waypoints[0]]], wait=True,
                                                 exec_args=exec_args)
-        elif method == "separate":
-            self._client.send_and_execute_goals(self._arm, self._waypoints, wait=True,
+            util.info2("middle.")
+            self._client.send_and_execute_goals(self._arm, [self._waypoints[1:-1]], wait=True,
+                                                exec_args=exec_args)
+            util.info2("last.")
+            self._client.send_and_execute_goals(self._arm, [[self._waypoints[-1]]], wait=True,
+                                                exec_args=exec_args)
+        elif method == "together":
+            self._client.send_and_execute_goals(self._arm, [self._waypoints], wait=True,
                                                 exec_args=exec_args)
         self._status = StrokeWriter.Status.COMPLETED
 
@@ -398,7 +407,7 @@ class CharacterWriter:
         self._client.send_and_execute_joint_space_goals_from_files(self._arm, [retract])
         rospy.sleep(1)
 
-    def Write(self, index=-1, method="together", stroke_complete_cb=None, cb_args=None):
+    def Write(self, index=-1, method="separate", stroke_complete_cb=None, cb_args=None):
         if len(self._strokes) != len(self._writers):
             raise Value("Incorrect number of stroke writers. Needs %d but got %d"
                         % (len(self._strokes), len(self._writers)))
