@@ -309,12 +309,13 @@ class MoveitPlanner:
                     util.info("Saving stroke path")
                     char_dir = rospy.get_param("current_writing_character_save_dir")
                     eepl.join()
-                    print(len(self._waypoints[group_name]))
-                    if len(self._waypoints[group_name]) > 1: 
-                        euc_poses = eepl.get_poses()
-                        with open(os.path.join(char_dir, "stroke-%d-path.yml" % goal.stroke_index), 'w') as f:
-                            yaml.dump(euc_poses, f)
-                            util.success("Saved planned trajectory for stroke %d" % goal.stroke_index)
+                    if os.path.exists(char_dir):
+                        print(len(self._waypoints[group_name]))
+                        if len(self._waypoints[group_name]) > 1: 
+                            euc_poses = eepl.get_poses()
+                            with open(os.path.join(char_dir, "stroke-%d-path.yml" % goal.stroke_index), 'w') as f:
+                                yaml.dump(euc_poses, f)
+                                util.success("Saved planned trajectory for stroke %d" % goal.stroke_index)
                 except KeyError:
                     pass
                 

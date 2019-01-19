@@ -420,15 +420,6 @@ class CharacterWriter:
                         % (len(self._strokes), len(self._writers)))
         if index < 0:
             # Draw entire character
-            print("_________________")
-            rospy.set_param("robot_description_planning/joint_limits/right_wrist_spherical_2_joint/max_velocity", 0.7)
-            rospy.set_param("robot_description_planning/joint_limits/right_wrist_spherical_1_joint/max_velocity", 0.7)
-            rospy.set_param("robot_description_planning/joint_limits/right_wrist_spherical_2_joint/max_acceleration", 1.0)
-            rospy.set_param("robot_description_planning/joint_limits/right_wrist_spherical_1_joint/max_acceleration", 1.0)
-            rospy.get_param("robot_description_planning/joint_limits/right_wrist_spherical_2_joint/max_velocity")
-            rospy.get_param("robot_description_planning/joint_limits/right_wrist_spherical_1_joint/max_velocity")
-            print("_________________")
-            
             for i in range(len(self._strokes)):
                 if self._client.is_healthy():
                     self.Write(i)
@@ -477,7 +468,8 @@ def write_characters(characters, retract_after_stroke=True, retract_scale=1, pen
             # Print character
             writer.print_character(res=40)
             util.warning("Dipping pen...")
-            writer.DipPen()
+            if pen.needs_dip():
+                writer.DipPen()
             util.warning("Getting ready...")
             writer.ReadyPose()
             writer.init_writers()
@@ -485,7 +477,8 @@ def write_characters(characters, retract_after_stroke=True, retract_scale=1, pen
             rospy.sleep(2)
             writer.Write()
             util.warning("Finished writing. Repositioning...")
-            writer.DipRetract()
+            if pen.needs_dip():
+                writer.DipRetract()
         except KeyboardInterrupt:
             print("Terminating...")
         except Exception as ex:

@@ -1,0 +1,52 @@
+bottom_left: !!python/tuple
+- !!python/object/apply:numpy.core._multiarray_umath.scalar
+  - !!python/object/apply:numpy.dtype
+    args: [f8, 0, 1]
+    state: !!python/tuple [3, <, null, null, null, -1, -1, 0]
+  - !!binary |
+    SpIkSZKshEA=
+- !!python/object/apply:numpy.core._multiarray_umath.scalar
+  - !!python/object/apply:numpy.dtype
+    args: [f8, 0, 1]
+    state: !!python/tuple [3, <, null, null, null, -1, -1, 0]
+  - !!binary |
+    3LZt27Z1hkA=
+bottom_right: !!python/tuple
+- !!python/object/apply:numpy.core._multiarray_umath.scalar
+  - !!python/object/apply:numpy.dtype
+    args: [f8, 0, 1]
+    state: !!python/tuple [3, <, null, null, null, -1, -1, 0]
+  - !!binary |
+    SpIkSZKMi0A=
+- !!python/object/apply:numpy.core._multiarray_umath.scalar
+  - !!python/object/apply:numpy.dtype
+    args: [f8, 0, 1]
+    state: !!python/tuple [3, <, null, null, null, -1, -1, 0]
+  - !!binary |
+    kyRJkiSBhkA=
+top_left: !!python/tuple
+- !!python/object/apply:numpy.core._multiarray_umath.scalar
+  - !!python/object/apply:numpy.dtype
+    args: [f8, 0, 1]
+    state: !!python/tuple [3, <, null, null, null, -1, -1, 0]
+  - !!binary |
+    AAAAAACYhkA=
+- !!python/object/apply:numpy.core._multiarray_umath.scalar
+  - !!python/object/apply:numpy.dtype
+    args: [f8, 0, 1]
+    state: !!python/tuple [3, <, null, null, null, -1, -1, 0]
+  - !!binary |
+    t23btm2TgkA=
+top_right: !!python/tuple
+- !!python/object/apply:numpy.core._multiarray_umath.scalar
+  - !!python/object/apply:numpy.dtype
+    args: [f8, 0, 1]
+    state: !!python/tuple [3, <, null, null, null, -1, -1, 0]
+  - !!binary |
+    JUmSJEnKikA=
+- !!python/object/apply:numpy.core._multiarray_umath.scalar
+  - !!python/object/apply:numpy.dtype
+    args: [f8, 0, 1]
+    state: !!python/tuple [3, <, null, null, null, -1, -1, 0]
+  - !!binary |
+    JUmSJEmqgkA=

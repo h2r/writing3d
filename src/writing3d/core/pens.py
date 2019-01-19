@@ -88,17 +88,18 @@ class SmallBrush(Pen):
 
 
 class Sharpe(Pen):
+    # Move torso to 0.1115, head tilt to -0.6
+    
     CONFIG = {
         "RESOLUTION": 0.0002,
-        "Z_RESOLUTION": 0.0002,
-        "Z_MIN": -0.0025,  # This depends on the size of the pen
-        "Z_MAX": -0.0012,
+        "Z_RESOLUTION": 0.009,
+        "Z_MIN": -0.015,  # This depends on the size of the pen
+        "Z_MAX": -0.008,
         "Z_LIFT": 0.03,
         "O_INI": (0.0, 90.0, 45.0), # when the pen is prependicular to the paper
-        "O_REST": (0.0, 45.0, 45.0), # when holding the pen at resting pose
+        "O_REST": (38.0, 44.6, 45.0), # when holding the pen at resting pose
         "AZ_FACTOR": -1,   # direction the angle should be applied
-                           # to the robot.
-        "AL_FACTOR": -1,
+        "AL_FACTOR": -1,   # to the robot.
         "AZ_I": 0,  # index for az
         "AL_I": 1,  # index for al
     }

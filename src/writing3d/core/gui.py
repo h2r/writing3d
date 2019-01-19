@@ -563,25 +563,29 @@ class WritingGui(TkGui):
                     util.error("origin_pose.yml does not exist. Cannot display robot trajectory.",
                                debug_level=3)
                 else:
-                    with open(os.path.join(self._writing_character_savedir,
-                                           "origin_pose.yml")) as f:
-                        origin_pose = yaml.load(f)
-                    for fname in os.listdir(self._writing_character_savedir):
-                        if fname.startswith("stroke") and fname.endswith("path.yml"):
-                            with open(os.path.join(self._writing_character_savedir, fname)) as f:
-                                stroke_path = yaml.load(f)
-                                if stroke_path is not None:
-                                    for pose in stroke_path:
-                                        # go from world coordinates to image coordinates
-                                        wx = pose.position.x - origin_pose.position.x
-                                        wy = pose.position.y - origin_pose.position.y
-                                        wz = pose.position.z - origin_pose.position.z
-                                        x = -wy / self._cres
-                                        y = -wx / self._cres
-                                        z = 5
-                                        # z = -wz / self._czres
-                                        img_th_display[int(round(y-z)):int(round(y+z)),
-                                                       int(round(x-z)):int(round(x+z))] = 0
+                    try:
+                        with open(os.path.join(self._writing_character_savedir,
+                                               "origin_pose.yml")) as f:
+                            origin_pose = yaml.load(f)
+                        for fname in os.listdir(self._writing_character_savedir):
+                            if fname.startswith("stroke") and fname.endswith("path.yml"):
+                                with open(os.path.join(self._writing_character_savedir, fname)) as f2:
+                                    stroke_path = yaml.load(f2)
+                                    if stroke_path is not None:
+                                        for pose in stroke_path:
+                                            # go from world coordinates to image coordinates
+                                            wx = pose.position.x - origin_pose.position.x
+                                            wy = pose.position.y - origin_pose.position.y
+                                            wz = pose.position.z - origin_pose.position.z
+                                            x = -wy / self._cres
+                                            y = -wx / self._cres
+                                            z = 5
+                                            # z = -wz / self._czres
+                                            img_th_display[int(round(y-z)):int(round(y+z)),
+                                                           int(round(x-z)):int(round(x+z))] = 0
+                    except yaml.ParserError as ex:
+                        util.warning("Parser error occurred.")
+                        return
                     
         size = self.show_image("char_extract", img_th_display,
                                loc=(self._width,

@@ -29,14 +29,15 @@ def update_stroke_images(gui, characters=None, chars_path=None):
         CURRENT_CHAR_INDX = char_indx
         gui.set_writing_character(characters[char_indx], char_indx, char_dir=os.path.join(chars_path, char_dir))
     stroke_img_files = []
-    for f in sorted(os.listdir(os.path.join(chars_path, char_dir))):
-        if f.startswith("stroke") and not f.endswith("-path.yml"):
-            stroke_img_files.append(f)
-    if len(gui.stroke_images) != len(stroke_img_files):
-        for i in range(len(gui.stroke_images), len(stroke_img_files)):
-            img = cv2.imread(os.path.join(chars_path, char_dir, stroke_img_files[i]),
-                             cv2.IMREAD_UNCHANGED)
-            gui.add_stroke_image(img)
+    if os.path.exists(os.path.join(chars_path, char_dir)):
+        for f in sorted(os.listdir(os.path.join(chars_path, char_dir))):
+            if f.startswith("stroke") and not f.endswith("-path.yml"):
+                stroke_img_files.append(f)
+        if len(gui.stroke_images) != len(stroke_img_files):
+            for i in range(len(gui.stroke_images), len(stroke_img_files)):
+                img = cv2.imread(os.path.join(chars_path, char_dir, stroke_img_files[i]),
+                                 cv2.IMREAD_UNCHANGED)
+                gui.add_stroke_image(img)
 
 
 def run_gui(chars_path, characters, gui_config_file=None,
@@ -84,5 +85,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-

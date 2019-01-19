@@ -31,6 +31,7 @@
 #
 # Try:
 # ./collect_data.py ../../../data/stroke.npy ../../../data/characters/ -g ../../../cfg/gui_config.yml
+import math
 import cv2
 import os, sys, signal
 import rospy
@@ -65,6 +66,7 @@ class CollectData():
 
 
     def _produce_stroke_image_from_difference(self,
+                                              pen,
                                               prev_stroke_img,
                                               cur_stroke_img,
                                               stroke):
@@ -84,6 +86,11 @@ class CollectData():
         """
         # The ink that was there, will still be there.
         # The ink that were just added may or may not be there.
+        if pen == pens.SmallBrush:
+            min_coverage = 0.001
+        elif pen == pens.Sharpe:
+            min_coverage = 0.0005
+            
         points_on_stroke = {(p[0],p[1]) for p in stroke}
 
         diff = cur_stroke_img - prev_stroke_img
@@ -120,7 +127,7 @@ class CollectData():
         if take_difference:
             if len(self._gui.stroke_images) > 0:
                 img_char = self._produce_stroke_image_from_difference(
-                    self._gui.stroke_images[-1], img_char, self._current_character[stroke_indx])
+                    self._pen, self._gui.stroke_images[-1], img_char, self._current_character[stroke_indx])
         self._gui.add_stroke_image(img_char)
         self._gui.save_stroke_image(img_char, os.path.join(save_dir, "stroke-%d.bmp" % stroke_indx))
 
@@ -229,9 +236,10 @@ def dip_retract(writer):
 
 def dot_four_corners(dim, pen):
     # strokes is an array of waypoints (x,y,z,z2,al,az)
-    angles = [None, None, None]
+    angles = [None, None, 0.0]
     if pen.uses_orientation():
-        angles = list(pen.CONFIG["O_REST"])
+        angles[pen.CONFIG["AL_I"]] = pen.CONFIG["O_REST"][pen.CONFIG["AL_I"]]
+        angles[pen.CONFIG["AZ_I"]] = pen.CONFIG["O_REST"][pen.CONFIG["AZ_I"]]
     strokes = np.array([
         [[0, 0, 0.5] + angles],
         [[dim-1, 0, 0.5] + angles],
