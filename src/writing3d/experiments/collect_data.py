@@ -32,7 +32,7 @@
 # Try:
 # ./collect_data.py ../../../data/stroke.npy ../../../data/characters/ -g ../../../cfg/gui_config.yml
 import cv2
-import os, signal
+import os, sys, signal
 import rospy
 import subprocess
 from multiprocessing import Process
@@ -132,15 +132,15 @@ class CollectData():
         rospy.init_node("collect_writing_data", anonymous=True, disable_signals=True)
 
         self._kinect = MovoKinectInterface()
-
-        # 1. Dip ink & 2. Dot on 4 corners
-        dot_four_corners(self._dimension, self._pen)
         
-        if self._test_first:            
+        if self._test_first:
+            # 1. Dip ink & 2. Dot on 4 corners
+            dot_four_corners(self._dimension, self._pen)
+
             util.info2("Writing a character (below). Please specify bounding box in GUI.",
                        bold=True)
             self._gui.set_writing_character(self._characters[0], 0)
-            write_characters([self._characters[0]], retract_after_stroke=False)
+            write_characters([self._characters[0]], retract_after_stroke=False, pen=self._pen)
             util.info("Sleeping for 20 seconds. Confirm bounding box within this time.")
             rospy.sleep(20)
         rospy.sleep(2)
@@ -163,7 +163,8 @@ class CollectData():
                 writer.print_character(res=40)
                 self._gui.set_writing_character(character, i, char_dir=save_dir)
                 self._gui.save_writing_character_image(os.path.join(save_dir, "image.bmp"))
-                dip_pen(writer)
+                if self._pen.needs_dip():
+                    dip_pen(writer)
                 get_ready(writer)
                 rospy.sleep(5) # use up some ink to lighten first strokes.
                 writer.init_writers()
@@ -176,7 +177,8 @@ class CollectData():
                                  'take_difference': True
                              })
                 util.warning("Finished writing. Repositioning...")
-                writer.DipRetract()
+                if self._pen.needs_dip():
+                    writer.DipRetract()
                 util.success("Character writing finished! Pause for 4 seconds before"\
                              "starting the next one.", bold=True)
                 rospy.sleep(4)
@@ -227,23 +229,28 @@ def dip_retract(writer):
 
 def dot_four_corners(dim, pen):
     # strokes is an array of waypoints (x,y,z,z2,al,az)
+    angles = [None, None, None]
+    if pen.uses_orientation():
+        angles = list(pen.CONFIG["O_REST"])
     strokes = np.array([
-        [[0, 0, 0.5, 0.0, 0.0, 0.0]],
-        [[dim-1, 0, 0.5, 0.0, 0.0, 0.0]],
-        [[dim-1, dim-1, 0.5, 0.0, 0.0, 0.0]],
-        [[0, dim-1, 0.5, 0.0, 0.0, 0.0]]
+        [[0, 0, 0.5] + angles],
+        [[dim-1, 0, 0.5] + angles],
+        [[dim-1, dim-1, 0.5] + angles],
+        [[0, dim-1, 0.5] + angles]
     ])
     writer = CharacterWriter(strokes, pen=pen,
                              num_waypoints=-1,
                              retract_after_stroke=False)
-    dip_pen(writer)
+    if pen.needs_dip():
+        dip_pen(writer)
     get_ready(writer)
     writer.init_writers()
     util.warning("Dipping corners...")
     rospy.sleep(2)
     writer.Write()           
     util.warning("Finished writing. Repositioning...")
-    writer.DipRetract()
+    if pen.needs_dip():
+        writer.DipRetract()
 
 
 def begin_procedure(characters, sorted_cindx, pen, dimension, save_dir,
@@ -255,7 +262,7 @@ def begin_procedure(characters, sorted_cindx, pen, dimension, save_dir,
     fg = FakeGuiWrapper(gui_config_file, pen=pen)
     task = CollectData(characters, sorted_cindx, dimension, fg.gui, save_dir,
                        pen=pen, test_first=test_first,
-                       num_waypoints=num_waypoints)
+                       num_waypoints=num_waypoints)    
     p = Process(target=fg.run, args=())
     p.daemon = True
     p.start()

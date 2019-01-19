@@ -83,7 +83,13 @@ class MoveitPlanner:
             except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException) as ex:
                 return
 
-    def __init__(self, group_names, visualize_plan=True, robot_name="movo"):
+    def __init__(self, group_names, visualize_plan=True, robot_name="movo", joint_limits={}):
+        """
+        joint_limits (dict) map from joint name to tuple (vel, acc) for velocity and acceleration
+                            limits of that joint. The joint name should be full name, including "left"
+                            and "right" etc.
+        """
+        
 
         # Initializing npode
         util.info("Initializing moveit commander...")
@@ -134,6 +140,13 @@ class MoveitPlanner:
             util.info("Current pose for %s" % n)
             util.info("    " + str(self._joint_groups[n].get_current_pose().pose))
 
+        util.info("Setting joint limits", bold=True)
+        for joint_name in joint_limits:
+            rospy.set_param("robot_description_planning/joint_limits/%s_joint/max_velocity" % joint_name, joint_limits[joint_name][0])
+            rospy.set_param("robot_description_planning/joint_limits/%s_joint/max_acceleration" % joint_name, joint_limits[joint_name][1])
+
+        self.print_joint_limits()
+
         if visualize_plan:
             self._display_trajectory_publisher = rospy.Publisher(
                 '/move_group/display_planned_path',
@@ -141,6 +154,39 @@ class MoveitPlanner:
 
     def __del__(self):
         moveit_commander.roscpp_shutdown()
+
+
+    def print_joint_limits(self):
+        # TODO: now only prints right arm
+        util.info("Joint Limits", bold=True)
+        util.info2("right_shoulder_pan")
+        print("vel: %f" % rospy.get_param("robot_description_planning/joint_limits/right_shoulder_pan_joint/max_velocity"))
+        print("acc: %f" % rospy.get_param("robot_description_planning/joint_limits/right_shoulder_pan_joint/max_acceleration"))
+        
+        util.info2("right_shoulder_lift")
+        print("vel: %f" % rospy.get_param("robot_description_planning/joint_limits/right_shoulder_lift_joint/max_velocity"))
+        print("acc: %f" % rospy.get_param("robot_description_planning/joint_limits/right_shoulder_lift_joint/max_acceleration"))
+        
+        util.info2("right_arm_half")
+        print("vel: %f" % rospy.get_param("robot_description_planning/joint_limits/right_arm_half_joint/max_velocity"))
+        print("acc: %f" % rospy.get_param("robot_description_planning/joint_limits/right_arm_half_joint/max_acceleration"))
+        
+        util.info2("right_elbow")
+        print("vel: %f" % rospy.get_param("robot_description_planning/joint_limits/right_elbow_joint/max_velocity"))
+        print("acc: %f" % rospy.get_param("robot_description_planning/joint_limits/right_elbow_joint/max_acceleration"))
+        
+        util.info2("right_wrist_spherical_1")
+        print("vel: %f" % rospy.get_param("robot_description_planning/joint_limits/right_wrist_spherical_1_joint/max_velocity"))
+        print("acc: %f" % rospy.get_param("robot_description_planning/joint_limits/right_wrist_spherical_1_joint/max_acceleration"))
+
+        util.info2("right_wrist_spherical_2")
+        print("vel: %f" % rospy.get_param("robot_description_planning/joint_limits/right_wrist_spherical_2_joint/max_velocity"))
+        print("acc: %f" % rospy.get_param("robot_description_planning/joint_limits/right_wrist_spherical_2_joint/max_acceleration"))
+
+        util.info2("right_wrist_3")
+        print("vel: %f" % rospy.get_param("robot_description_planning/joint_limits/right_wrist_3_joint/max_velocity"))
+        print("acc: %f" % rospy.get_param("robot_description_planning/joint_limits/right_wrist_3_joint/max_acceleration"))
+        
 
     def compute_fk(self, ee_link, joint_names, joint_positions, base_frame="odom"):
         """Given joint position, figure out the euclidean coordinates by
@@ -306,11 +352,17 @@ class MoveitPlanner:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Movo Moveit Planner.')
+    parser.add_argument("-j", "--joint_limits_file",
+                        type=str, help="Directory to save the collected data", default="../../../cfg/arm_joint_limits.yml")
     parser.add_argument('group_names', type=str, nargs="+", help="Group name(s) that the client wants to talk to")
     args = parser.parse_args()
 
     rospy.init_node("moveit_movo_planner",
                     anonymous=True)
+
+    joint_limits = {}
+    with open(args.joint_limits_file) as f:
+        joint_limits = yaml.load(f)
     
-    MoveitPlanner(args.group_names)
+    MoveitPlanner(args.group_names, joint_limits=joint_limits)
     rospy.spin()

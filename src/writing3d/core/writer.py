@@ -154,17 +154,15 @@ class StrokeWriter:
                         wz = max(min(wz, self._z_max), self._z_min)
                     current_pose.position.z += wz
 
-                    # Orientation; (unused for now)
+                    # Orientation;
                     if self._pen.uses_orientation():
-                        current_orien = euler_from_quaternion([
-                            current_pose.orientation.x,
-                            current_pose.orientation.y,
-                            current_pose.orientation.z,
-                            current_pose.orientation.w,
-                        ])
-                        current_pose.orientation = geometry_msgs.msg.Quaternion(*quaternion_from_euler(current_orien[0] + math.radians(az),
-                                                                                                       current_orien[1] + math.radians(al),
-                                                                                                       current_orien[2])) # roll, pitch, yaw
+
+                        euler = list(self._pen.CONFIG["O_INI"])
+                        euler[self._pen.CONFIG["AZ_I"]] += az * self._pen.CONFIG["AZ_FACTOR"]
+                        euler[self._pen.CONFIG["AL_I"]] += al * self._pen.CONFIG["AL_FACTOR"]
+                        current_pose.orientation = geometry_msgs.msg.Quaternion(*quaternion_from_euler(math.radians(euler[0]),
+                                                                                                       math.radians(euler[1]),
+                                                                                                       math.radians(euler[2])))
                 waypoints.append(current_pose)
 
             self._waypoints = waypoints
@@ -182,7 +180,7 @@ class StrokeWriter:
             self._waypoints.append(last_pose)
 
             # Print stats
-            if common.DEBUG_LEVEL > 1:
+            if common.DEBUG_LEVEL > 3:
                 self._print_waypoint_stats()
             
 
@@ -342,23 +340,24 @@ class CharacterWriter:
         print("x range: %.3f (%.3f ~ %.3f)" % (allmax[0] - allmin[0], allmin[0], allmax[0]))
         print("y range: %.3f (%.3f ~ %.3f)" % (allmax[1] - allmin[1], allmin[1], allmax[1]))
         print("z range: %.3f (%.3f ~ %.3f)" % (allmax[2] - allmin[2], allmin[2], allmax[2]))
-        print("al range: %.3f (%.3f ~ %.3f)" % (allmax[4] - allmin[4], allmin[4], allmax[4]))
-        print("az range: %.3f (%.3f ~ %.3f)" % (allmax[5] - allmin[5], allmin[5], allmax[5]))
 
         print("========= Ranges (world-space) ========")
         print("------ Note: Influenced by pen! -------")
         resolution = self._pen.param("RESOLUTION")
         z_resolution = self._pen.param("Z_RESOLUTION")
+        print("al range: %.3f (%.3f ~ %.3f)" % (allmax[4] - allmin[4], allmin[4], allmax[4]))
+        print("az range: %.3f (%.3f ~ %.3f)" % (allmax[5] - allmin[5], allmin[5], allmax[5]))
+
         print("x range: %.3f (%.3f ~ %.3f)" % ((allmax[0] - allmin[0]) * resolution,
                                                allmin[0] * resolution,
                                                allmax[0] * resolution))
         print("y range: %.3f (%.3f ~ %.3f)" % ((allmax[1] - allmin[1]) * resolution,
                                                allmin[1] * resolution,
                                                allmax[1] * resolution))
-        if z_resolution is not None:
-            print("z range: %.5f (%.5f ~ %.5f)" % ((allmax[2] - allmin[2]) * z_resolution,
-                                                   allmin[2] * z_resolution,
-                                                   allmax[2] * z_resolution))
+        print("z range: %.5f (%.5f ~ %.5f)" % ((allmax[2] - allmin[2]) * z_resolution,
+                                               allmin[2] * z_resolution,
+                                               allmax[2] * z_resolution))
+        if self._pen.uses_orientation() is not None:
             print("al range: %.3f (%.3f ~ %.3f)" % (allmax[4] - allmin[4],
                                                     allmin[4],
                                                     allmax[4]))
@@ -421,6 +420,15 @@ class CharacterWriter:
                         % (len(self._strokes), len(self._writers)))
         if index < 0:
             # Draw entire character
+            print("_________________")
+            rospy.set_param("robot_description_planning/joint_limits/right_wrist_spherical_2_joint/max_velocity", 0.7)
+            rospy.set_param("robot_description_planning/joint_limits/right_wrist_spherical_1_joint/max_velocity", 0.7)
+            rospy.set_param("robot_description_planning/joint_limits/right_wrist_spherical_2_joint/max_acceleration", 1.0)
+            rospy.set_param("robot_description_planning/joint_limits/right_wrist_spherical_1_joint/max_acceleration", 1.0)
+            rospy.get_param("robot_description_planning/joint_limits/right_wrist_spherical_2_joint/max_velocity")
+            rospy.get_param("robot_description_planning/joint_limits/right_wrist_spherical_1_joint/max_velocity")
+            print("_________________")
+            
             for i in range(len(self._strokes)):
                 if self._client.is_healthy():
                     self.Write(i)
@@ -455,7 +463,7 @@ class CharacterWriter:
                 return
 #-- End of CharacterWriter --#
 
-def write_characters(characters, retract_after_stroke=True, retract_scale=1):
+def write_characters(characters, retract_after_stroke=True, retract_scale=1, pen=pens.SmallBrush):
     """Each character is an array of strokes, which is an array of waypoints (x,y,z,z2,al,az)
     Currently, the characters are all written with respect to the same origin pose. So they
     will overlap. A human assistant should replace the paper once a character is written"""
@@ -463,7 +471,7 @@ def write_characters(characters, retract_after_stroke=True, retract_scale=1):
     for i, character in enumerate(characters):
         util.info("Starting character writer...")
         try:
-            writer = CharacterWriter(character, pen=pens.SmallBrush, num_waypoints=10,
+            writer = CharacterWriter(character, pen=pen, num_waypoints=10,
                                      retract_after_stroke=retract_after_stroke,
                                      retract_scale=retract_scale)
             # Print character

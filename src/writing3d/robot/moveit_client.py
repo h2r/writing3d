@@ -8,6 +8,8 @@ import moveit_msgs.msg
 import geometry_msgs.msg
 import actionlib
 import yaml
+import math
+from tf.transformations import quaternion_from_euler, euler_from_quaternion
 
 from writing3d.msg import PlanMoveEEAction, PlanMoveEEGoal, PlanMoveEEResult, PlanMoveEEFeedback, \
     ExecMoveitPlanAction, ExecMoveitPlanGoal, ExecMoveitPlanResult, ExecMoveitPlanFeedback, \
@@ -91,11 +93,19 @@ class MoveitClient:
             pose_target.position.y = pose[1]
             pose_target.position.z = pose[2]
             if len(pose) > 3:
-                pose_target.orientation.x = pose[3]
-                pose_target.orientation.y = pose[4]
-                pose_target.orientation.z = pose[5]
-                pose_target.orientation.w = pose[6]
+                if len(pose) == 6:
+                    pose_target.orientation = geometry_msgs.msg.Quaternion(
+                        *quaternion_from_euler(
+                            math.radians(pose[3]),
+                            math.radians(pose[4]),
+                            math.radians(pose[5])))
+                elif len(pose) == 7:
+                    pose_target.orientation.x = pose[3]
+                    pose_target.orientation.y = pose[4]
+                    pose_target.orientation.z = pose[5]
+                    pose_target.orientation.w = pose[6]
                 trans_only = False
+            print(pose_target)
                 
             goal = PlanMoveEEGoal()
             goal.group_name = group_name

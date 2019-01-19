@@ -515,14 +515,21 @@ class WritingGui(TkGui):
         return img_char
         
     def _remove_perspective(self, img_src, show_result=True):
-        h, status = cv2.findHomography(np.array([self._top_left,
-                                                 self._top_right,
-                                                 self._bottom_right,
-                                                 self._bottom_left]),
-                                       np.array([[0, 0],
-                                                 [self._cdim, 0],
-                                                 [self._cdim, self._cdim],
-                                                 [0, self._cdim]]))
+        try:
+            h, status = cv2.findHomography(np.array([self._top_left,
+                                                     self._top_right,
+                                                     self._bottom_right,
+                                                     self._bottom_left]),
+                                           np.array([[0, 0],
+                                                     [self._cdim, 0],
+                                                     [self._cdim, self._cdim],
+                                                     [0, self._cdim]]))
+        except TypeError:
+            print(self._cdim)
+            print(self._top_left)
+            print(self._top_right)
+            print(self._bottom_left)
+            print(self._bottom_right)
         img_dst = cv2.warpPerspective(img_src, h, (self._cdim, self._cdim))
         if show_result:
             size = self.show_image(WritingGui.KINECT_IMAGE_NAME + "_np", img_dst,

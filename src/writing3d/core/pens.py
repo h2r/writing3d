@@ -52,6 +52,10 @@ class Pen:
     def uses_orientation(cls):
         return False
 
+    @classmethod
+    def needs_dip(cls):
+        return False
+
 class SmallBrush(Pen):
     CONFIG = {
         "RESOLUTION": 0.0004,
@@ -77,11 +81,26 @@ class SmallBrush(Pen):
     def uses_orientation(cls):
         return False
 
+    @classmethod
+    def needs_dip(cls):
+        return True
 
-class Sharpe:
+
+
+class Sharpe(Pen):
     CONFIG = {
         "RESOLUTION": 0.0002,
+        "Z_RESOLUTION": 0.0002,
+        "Z_MIN": -0.0025,  # This depends on the size of the pen
+        "Z_MAX": -0.0012,
         "Z_LIFT": 0.03,
+        "O_INI": (0.0, 90.0, 45.0), # when the pen is prependicular to the paper
+        "O_REST": (0.0, 45.0, 45.0), # when holding the pen at resting pose
+        "AZ_FACTOR": -1,   # direction the angle should be applied
+                           # to the robot.
+        "AL_FACTOR": -1,
+        "AZ_I": 0,  # index for az
+        "AL_I": 1,  # index for al
     }
     
     @classmethod
@@ -95,6 +114,14 @@ class Sharpe:
     @classmethod
     def retract_pose(cls):
         return common.goal_file("retract_joint_pose_sharpe")
+
+    @classmethod
+    def uses_orientation(cls):
+        return True
+    
+    @classmethod
+    def needs_dip(cls):
+        return False
 
 
 ALL_PENS = [Pen, SmallBrush, Sharpe]
