@@ -132,11 +132,11 @@ class CollectData():
         rospy.init_node("collect_writing_data", anonymous=True, disable_signals=True)
 
         self._kinect = MovoKinectInterface()
+
+        # 1. Dip ink & 2. Dot on 4 corners
+        dot_four_corners(self._dimension, self._pen)
         
-        if self._test_first:
-            # 1. Dip ink & 2. Dot on 4 corners
-            dot_four_corners(self._dimension, self._pen)
-            
+        if self._test_first:            
             util.info2("Writing a character (below). Please specify bounding box in GUI.",
                        bold=True)
             self._gui.set_writing_character(self._characters[0], 0)
@@ -163,7 +163,7 @@ class CollectData():
                 writer.print_character(res=40)
                 self._gui.set_writing_character(character, i, char_dir=save_dir)
                 self._gui.save_writing_character_image(os.path.join(save_dir, "image.bmp"))
-                # dip_pen(writer)
+                dip_pen(writer)
                 get_ready(writer)
                 rospy.sleep(5) # use up some ink to lighten first strokes.
                 writer.init_writers()
@@ -185,9 +185,6 @@ class CollectData():
                 print("Exception! %s" % ex)
                 import traceback
                 traceback.print_exc()
-            finally:
-                rospy.delete_param("current_writing_character_index")
-                rospy.delete_param("current_writing_character_save_dir")
         self._done = True
 
 class FakeGuiWrapper():

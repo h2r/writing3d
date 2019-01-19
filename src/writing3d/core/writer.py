@@ -198,7 +198,7 @@ class StrokeWriter:
         exec_args = {
             "stroke_index": self._stroke_index
         }
-        if len(self._waypoints) == 1:
+        if len(self._waypoints) <= 4:
             method = "together"
 
         print(method)
@@ -280,10 +280,18 @@ class CharacterWriter:
         if common.DEBUG_LEVEL > 0:
             self._print_waypoint_stats()
 
+
+    @property
+    def arm(self):
+        return self._arm
             
     @property
     def arm_side(self):
         return self._arm.split("_")[0]
+
+    @property
+    def client(self):
+        return self._client
 
     
     def visualize_strokes(self):
