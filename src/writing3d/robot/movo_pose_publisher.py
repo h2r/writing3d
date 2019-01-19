@@ -5,7 +5,7 @@
 
 import rospy
 from std_msgs.msg import Header
-from movo_msgs.msg import JacoAngularVelocityCmd7DOF, JacoCartesianVelocityCmd, PVA, PanTiltCmd
+from movo_msgs.msg import JacoAngularVelocityCmd7DOF, JacoCartesianVelocityCmd, PVA, PanTiltCmd, LinearActuatorCmd
 
 import argparse
 
@@ -107,9 +107,34 @@ def move_head(pan, tilt):
     while not rospy.is_shutdown():
         rospy.sleep(2)
 
+
+def move_torso(pos, vel):
+    global SEQ
+
+    if pos < 0 or pos > 0.6:
+        raise ValueError("Invalid position for torso! (0 ~ 0.6)")
+    if vel > 0.1:
+        raise ValueError("Too fast!")
+    elif vel < 0:
+        raise ValueError("Velocity cannot be negative.")
+
+    msg = LinearActuatorCmd()
+    msg.header = Header()
+    msg.header.stamp = rospy.Time.now()
+    msg.header.seq = SEQ; SEQ += 1
+    msg.desired_position_m = pos
+    msg.fdfwd_vel_mps = vel
+    pub = rospy.Publisher("movo/linear_actuator_cmd", LinearActuatorCmd, queue_size=10, latch=True)
+    rospy.loginfo("Publishing %s" % msg)
+    pub.publish(msg)
+    print("Publishing and latching message. Press ctrl-C to terminate")
+    while not rospy.is_shutdown():
+        rospy.sleep(0.5)
+    
+
 def main():
     parser = argparse.ArgumentParser(description='Publish velocity commands to MOVO arm joints.')
-    parser.add_argument("part", type=str, help="Which arm to move. 'left' or 'right' or 'head'")
+    parser.add_argument("part", type=str, help="Which arm to move. 'left' or 'right' or 'head' or 'torso'")
     parser.add_argument('-i', '--indices', type=int, nargs='+',
                         help='Indices of joints, or indices of coordinates (if using cartesian).')
     parser.add_argument('-v', '--vals', type=float, nargs='+',
@@ -128,8 +153,9 @@ def main():
 
     rospy.init_node("movo_pose_node", anonymous=True)
 
-    if args.part.lower() != "left" and args.part.lower() != "right" and args.part.lower() != "head":
-        raise ValueError("part must be either left or right or head!")
+    if args.part.lower() != "left" and args.part.lower() != "right" and args.part.lower() != "head"\
+       and args.part.lower() != "torso":
+        raise ValueError("part must be either left or right or head or torso!")
 
     indices = args.indices if args.indices is not None else []
     vals = args.vals if args.vals is not None else []
@@ -141,11 +167,15 @@ def main():
             else:
                 msg = angular_vel(indices, vals)
             pose_publisher(msg, args.part.lower(), rate=args.rate, duration=args.duration)
-        else:
+        elif args.part.lower() == "head":
             if args.pan is None and args.tilt is None:
                 raise ValueError("At least one of '--pan' or '--tilt' must be given.")
             move_head(args.pan if args.pan is not None else [],
                       args.tilt if args.tilt is not None else [])
+        elif args.part.lower() == "torso":
+            if len(args.vals) != 2:
+                raise ValueError("Need to supply position and velocity for torso movement.")
+            move_torso(args.vals[0], args.vals[1])
     except rospy.ROSInterruptException:
         pass
 
