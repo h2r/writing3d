@@ -583,7 +583,7 @@ class WritingGui(TkGui):
                             with open(os.path.join(self._writing_character_savedir, fname)) as f2:
                                 result.append(read_stroke_paths_file(f2))
                 return result
-            except yaml.ParserError as ex:
+            except Exception as ex:
                 util.warning("Parser error occurred.")
                 return
         else:

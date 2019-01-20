@@ -106,9 +106,9 @@ class Sharpe(Pen):
     
     CONFIG = {
         "RESOLUTION": 0.0002,
-        "Z_RESOLUTION": 0.008,
+        "Z_RESOLUTION": 0.006,
         "Z_MIN": -0.012,  # This depends on the size of the pen
-        "Z_MAX": -0.007,
+        "Z_MAX": -0.004,
         "Z_LIFT": 0.03,
         "O_INI": (0.0, 90.0, 45.0), # when the pen is prependicular to the paper
         "O_REST": (38.0, 44.6, 45.0), # when holding the pen at resting pose
@@ -116,7 +116,7 @@ class Sharpe(Pen):
         "AL_FACTOR": -1,   # to the robot.
         "AZ_I": 0,  # index for az
         "AL_I": 1,  # index for al
-        "PEN_TIP_TF": [(0.15, 0.0, 0.0),
+        "PEN_TIP_TF": [(0.1, 0.0, 0.0),
                        tuple(quaternion_from_euler(math.radians(0),
                                                    math.radians(0),
                                                    math.radians(0)))]        
@@ -161,7 +161,7 @@ class PubPenTipTf:
     def publish_transform(self, ee_frame):
         br = tf.TransformBroadcaster()
         try:
-            rate = rospy.Rate(60)
+            rate = rospy.Rate(70)
             while not rospy.is_shutdown():
                 br.sendTransform(self._pen.CONFIG['PEN_TIP_TF'][0],
                                  self._pen.CONFIG['PEN_TIP_TF'][1],
@@ -185,10 +185,12 @@ def main():
 
     rospy.init_node("pen_tip_tf_pub",
                     anonymous=True, disable_signals=True)
-    
-    pen = str_to_pen(args.pen)
-    ptf = PubPenTipTf(pen, args.ee_frame)
-    ptf.run()
+    try:
+        pen = str_to_pen(args.pen)
+        ptf = PubPenTipTf(pen, args.ee_frame)
+        ptf.run()
+    except KeyboardInterrupt as ex:
+        print("Terminating...")
 
         
 if __name__ == "__main__":

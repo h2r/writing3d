@@ -69,6 +69,7 @@ class ListenEEPose(threading.Thread):
                 rate.sleep()
 
         except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException) as ex:
+            print("ERROR!")
             return
 
 
@@ -295,10 +296,9 @@ class MoveitPlanner:
         result = ExecMoveitPlanResult()
         if goal.action == common.ActionType.EXECUTE:
             if self._plan_type == MoveitPlanner.PlanType.WAYPOINTS:
-                ee_frame = self._joint_groups[group_name].get_end_effector_link()
                 base_frame = self._joint_groups[group_name].get_pose_reference_frame()
                 eepl = ListenEEPose(self, group_name, self._tf_listener,
-                                    base_frame, ee_frame)
+                                    base_frame, "pen_tip")
                 eepl.start()
                 success = self._joint_groups[group_name].execute(self._current_plan[group_name])
             else:
@@ -381,18 +381,19 @@ def main():
         joint_limits = yaml.load(f)
 
 
-    p_pen_tf = subprocess.Popen(['rosrun',
-                                 'writing3d',
-                                 'pens.py',
-                                 args.pen,
-                                 args.ee_frame])
+    # p_pen_tf = subprocess.Popen(['rosrun',
+    #                              'writing3d',
+    #                              'pens.py',
+    #                              args.pen,
+    #                              args.ee_frame])
 
     try:
         MoveitPlanner(args.group_names, joint_limits=joint_limits)
         rospy.spin()
-        p_pen_tf.wait()
+        # p_pen_tf.wait()
     except KeyboardInterrupt:
-        p_pen_tf.kill()
+        # p_pen_tf.kill()
+        pass
 
 
 if __name__ == "__main__":
