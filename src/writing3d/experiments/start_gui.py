@@ -48,7 +48,7 @@ def run_gui(chars_path, characters, gui_config_file=None,
     gui.init()
     kinect = MovoKinectInterface()
     gui.set_kinect(kinect)
-    gui.update_kinect_image_periodically(every=0.3)
+    gui.update_kinect_image_periodically(every=0.4)
 
     if gui_config_file is not None:
         gui.set_config_file(gui_config_file)

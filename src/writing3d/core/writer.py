@@ -156,7 +156,6 @@ class StrokeWriter:
 
                     # Orientation;
                     if self._pen.uses_orientation():
-
                         euler = list(self._pen.CONFIG["O_INI"])
                         euler[self._pen.CONFIG["AZ_I"]] += az * self._pen.CONFIG["AZ_FACTOR"]
                         euler[self._pen.CONFIG["AL_I"]] += al * self._pen.CONFIG["AL_FACTOR"]

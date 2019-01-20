@@ -19,6 +19,7 @@
 import os, sys
 import cv2
 import numpy as np
+from scipy.ndimage.interpolation import shift as scipy_shift
 import copy
 import yaml
 import argparse
@@ -451,7 +452,7 @@ class WritingGui(TkGui):
         self._bottom_right = np.array([x/self._bg_scale + WritingGui.POINT_CIRCLE_RADIUS,
                                        y/self._bg_scale + WritingGui.POINT_CIRCLE_RADIUS])
         self._check_and_draw()
-        
+
     def _draw_dash(self, name, start, end, color=(102, 204, 255)):
         """`start` and `end` are points on the original image, which may have been scaled
         for display. So we need to adjust here too when displaying the dashed line"""
@@ -530,11 +531,63 @@ class WritingGui(TkGui):
             print(self._top_right)
             print(self._bottom_left)
             print(self._bottom_right)
+
         img_dst = cv2.warpPerspective(img_src, h, (self._cdim, self._cdim))
+        img_display = np.copy(img_dst)
+
         if show_result:
-            size = self.show_image(WritingGui.KINECT_IMAGE_NAME + "_np", img_dst,
+            size = self.show_image(WritingGui.KINECT_IMAGE_NAME + "_np", img_display,
                                    loc=(self._width, 0), anchor='ne', scale=self._box_scale)
         return img_dst
+
+    def get_stroke_path_in_pixels(self, stroke_index=None):
+        """Return a 2D array [[[x1,y1], [x2,y2],...]...] where the outer array
+        is an array of stroke paths which have coordinates in pixels."""
+        def read_stroke_paths_file(f2):
+            stroke_path = yaml.load(f2)
+            pixel_path = []
+            if stroke_path is not None:
+                for pose in stroke_path:
+                    # go from world coordinates to image coordinates
+                    wx = pose.position.x - origin_pose.position.x
+                    wy = pose.position.y - origin_pose.position.y
+                    wz = pose.position.z - origin_pose.position.z
+                    x = -wy / self._cres
+                    y = -wx / self._cres
+                    pixel_path.append([x,y])
+            return pixel_path
+
+        
+        if self._writing_character_savedir is not None\
+           and os.path.exists(self._writing_character_savedir):
+            if not os.path.exists(os.path.join(self._writing_character_savedir,
+                                               "origin_pose.yml")):
+                util.error("origin_pose.yml does not exist. Cannot display robot trajectory.",
+                           debug_level=3)
+                return []
+            try:
+                with open(os.path.join(self._writing_character_savedir,
+                                       "origin_pose.yml")) as f:
+                    origin_pose = yaml.load(f)
+
+                result = []
+                if stroke_index is not None:
+                   stroke_path_file = os.path.join(self._writing_character_savedir,
+                                                   "stroke-%d-path.yml" % stroke_indx)
+                   if os.path.exists(stroke_path_file):
+                       with open(stroke_path_file) as f2:
+                           result.append(read_stroke_paths_file(f2))
+                else:
+                    for fname in os.listdir(self._writing_character_savedir):
+                        if fname.startswith("stroke") and fname.endswith("path.yml"):
+                            with open(os.path.join(self._writing_character_savedir, fname)) as f2:
+                                result.append(read_stroke_paths_file(f2))
+                return result
+            except yaml.ParserError as ex:
+                util.warning("Parser error occurred.")
+                return
+        else:
+            return []
 
     def _show_character_with_path(self, img):
         """
@@ -554,39 +607,17 @@ class WritingGui(TkGui):
                     z = p[2] * 2
                     img_th_display[int(round(y-z)):int(round(y+z)),
                                    int(round(x-z)):int(round(x+z))] = 100
-
+            
             # Display the robot's planned trajactory for the strokes
-            if self._writing_character_savedir is not None\
-               and os.path.exists(self._writing_character_savedir):
-                if not os.path.exists(os.path.join(self._writing_character_savedir,
-                                                   "origin_pose.yml")):
-                    util.error("origin_pose.yml does not exist. Cannot display robot trajectory.",
-                               debug_level=3)
-                else:
-                    try:
-                        with open(os.path.join(self._writing_character_savedir,
-                                               "origin_pose.yml")) as f:
-                            origin_pose = yaml.load(f)
-                        for fname in os.listdir(self._writing_character_savedir):
-                            if fname.startswith("stroke") and fname.endswith("path.yml"):
-                                with open(os.path.join(self._writing_character_savedir, fname)) as f2:
-                                    stroke_path = yaml.load(f2)
-                                    if stroke_path is not None:
-                                        for pose in stroke_path:
-                                            # go from world coordinates to image coordinates
-                                            wx = pose.position.x - origin_pose.position.x
-                                            wy = pose.position.y - origin_pose.position.y
-                                            wz = pose.position.z - origin_pose.position.z
-                                            x = -wy / self._cres
-                                            y = -wx / self._cres
-                                            z = 5
-                                            # z = -wz / self._czres
-                                            img_th_display[int(round(y-z)):int(round(y+z)),
-                                                           int(round(x-z)):int(round(x+z))] = 0
-                    except yaml.ParserError as ex:
-                        util.warning("Parser error occurred.")
-                        return
-                    
+            pixel_paths = self.get_stroke_path_in_pixels()
+            # Estimate the shift the character image has from the robot's pose.
+            if len(pixel_paths) > 0:
+                for pixel_path in pixel_paths:
+                    for x, y in pixel_path:
+                        z = 5
+                        img_th_display[int(round(y-z)):int(round(y+z)),
+                                       int(round(x-z)):int(round(x+z))] = 0
+
         size = self.show_image("char_extract", img_th_display,
                                loc=(self._width,
                                     img_th_display.shape[1]*self._box_scale),
@@ -647,7 +678,7 @@ class WritingGui(TkGui):
                                          radius=WritingGui.POINT_CIRCLE_RADIUS,
                                          color=WritingGui.BOTTOM_RIGHT_COLOR,
                                          clear_previous=True, done_cb=self._store_bottom_right)
-
+        
         self.register_key_press_event("save_config", "p",
                                       self._save_config_cb)
         

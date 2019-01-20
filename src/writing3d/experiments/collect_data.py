@@ -110,7 +110,7 @@ class CollectData():
         stroke_img = np.copy(prev_stroke_img)
         for i in comps_kept:
             stroke_img[labeled==i+1] = 255
-        return stroke_img
+        return stroke_img, labeled, comps_kept
         
 
     def stroke_complete_cb(self, stroke_indx, **kwargs):
@@ -123,11 +123,13 @@ class CollectData():
         util.info("Saving information after writing stroke %d" % (stroke_indx+1))
         img = self._kinect.take_picture(hd=True)
         img_char = self._gui.extract_character_image(img_src=img, show_result=False)
-
+        
+        # This image may be off. We may need to shift it according to the robot's path.
         if take_difference:
             if len(self._gui.stroke_images) > 0:
-                img_char = self._produce_stroke_image_from_difference(
+                img_char, labeled, comps_kept = self._produce_stroke_image_from_difference(
                     self._pen, self._gui.stroke_images[-1], img_char, self._current_character[stroke_indx])
+                
         self._gui.add_stroke_image(img_char)
         self._gui.save_stroke_image(img_char, os.path.join(save_dir, "stroke-%d.bmp" % stroke_indx))
 
