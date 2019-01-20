@@ -10,6 +10,7 @@
 import os, sys
 import math
 import copy
+import numpy as np
 import rospy
 import moveit_commander
 import moveit_msgs.srv
@@ -23,7 +24,7 @@ import argparse
 import yaml
 import tf
 import threading
-import numpy as np
+import subprocess
 
 from writing3d.msg import PlanMoveEEAction, PlanMoveEEGoal, PlanMoveEEResult, PlanMoveEEFeedback, \
     ExecMoveitPlanAction, ExecMoveitPlanGoal, ExecMoveitPlanResult, ExecMoveitPlanFeedback, \
@@ -33,10 +34,43 @@ from writing3d.msg import PlanMoveEEAction, PlanMoveEEGoal, PlanMoveEEResult, Pl
 
 import writing3d.common as common
 import writing3d.util as util
+import writing3d.core.pens as pens
 
 
 common.DEBUG_LEVEL = 1
-    
+
+class ListenEEPose(threading.Thread):
+    def __init__(self, planner, group_name, tf_listener,
+                 base_frame="/odom", ee_frame="/pen_tip"):
+        threading.Thread.__init__(self)
+        self._base_frame = base_frame
+        self._ee_frame = ee_frame
+        self._poses = []
+        self._timestamps = []
+        self._tf_listener = tf_listener
+        self._planner = planner
+        self._group_name = group_name
+
+    def get_poses(self):
+        return self._poses
+
+    def run(self):
+        try:
+            rate = rospy.Rate(100)
+            while self._planner._current_goal[self._group_name] is not None\
+                  and not rospy.is_shutdown():
+                trans, rot = self._tf_listener.lookupTransform(self._base_frame,
+                                                               self._ee_frame,
+                                                               rospy.Time(0))
+                self._poses.append(geometry_msgs.msg.Pose(
+                    geometry_msgs.msg.Point(*trans),
+                    geometry_msgs.msg.Quaternion(*rot)
+                ))
+                rate.sleep()
+
+        except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException) as ex:
+            return
+
 
 class MoveitPlanner:
 
@@ -51,39 +85,8 @@ class MoveitPlanner:
         JOINT_SPACE = 2
         WAYPOINTS = 3
 
-    class ListenEEPose(threading.Thread):
-        def __init__(self, planner, group_name, tf_listener,
-                     base_frame="/odom", ee_frame="/right_ee_link"):
-            threading.Thread.__init__(self)
-            self._base_frame = base_frame
-            self._ee_frame = ee_frame
-            self._poses = []
-            self._timestamps = []
-            self._tf_listener = tf_listener
-            self._planner = planner
-            self._group_name = group_name
-
-        def get_poses(self):
-            return self._poses
-
-        def run(self):
-            try:
-                rate = rospy.Rate(100)
-                while self._planner._current_goal[self._group_name] is not None\
-                      and not rospy.is_shutdown():
-                    trans, rot = self._tf_listener.lookupTransform(self._base_frame,
-                                                                   self._ee_frame,
-                                                                   rospy.Time(0))
-                    self._poses.append(geometry_msgs.msg.Pose(
-                        geometry_msgs.msg.Point(*trans),
-                        geometry_msgs.msg.Quaternion(*rot)
-                    ))
-                    rate.sleep()
-                        
-            except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException) as ex:
-                return
-
-    def __init__(self, group_names, visualize_plan=True, robot_name="movo", joint_limits={}):
+    def __init__(self, group_names, visualize_plan=True,
+                 robot_name="movo", joint_limits={}):
         """
         joint_limits (dict) map from joint name to tuple (vel, acc) for velocity and acceleration
                             limits of that joint. The joint name should be full name, including "left"
@@ -155,6 +158,14 @@ class MoveitPlanner:
     def __del__(self):
         moveit_commander.roscpp_shutdown()
 
+    def start_pen_tip_tf(self):
+        # Run pen tf publisher
+        if self._pen is not None:
+            util.info("Starting pen tip tf publisher", bold=True)
+            pen.publish_transform()
+
+
+        
 
     def print_joint_limits(self):
         # TODO: now only prints right arm
@@ -286,8 +297,8 @@ class MoveitPlanner:
             if self._plan_type == MoveitPlanner.PlanType.WAYPOINTS:
                 ee_frame = self._joint_groups[group_name].get_end_effector_link()
                 base_frame = self._joint_groups[group_name].get_pose_reference_frame()
-                eepl = MoveitPlanner.ListenEEPose(self, group_name, self._tf_listener,
-                                                  base_frame, ee_frame)
+                eepl = ListenEEPose(self, group_name, self._tf_listener,
+                                    base_frame, ee_frame)
                 eepl.start()
                 success = self._joint_groups[group_name].execute(self._current_plan[group_name])
             else:
@@ -349,21 +360,40 @@ class MoveitPlanner:
         util.success("Goal for %s has been cleared" % group_name)
         self._current_plan[group_name] = None
         self._current_goal[group_name] = None
-            
 
-if __name__ == "__main__":
+
+def main():
     parser = argparse.ArgumentParser(description='Movo Moveit Planner.')
     parser.add_argument("-j", "--joint_limits_file",
                         type=str, help="Directory to save the collected data", default="../../../cfg/arm_joint_limits.yml")
+    parser.add_argument("-p", "--pen", type=str, help="Type of pen to use. See pens.py",
+                        default=pens.SmallBrush.name())
+    parser.add_argument("-e", "--ee-frame", type=str, help="EE link which holds the pen (e.g. right_ee_link)",
+                        default="right_ee_link")
     parser.add_argument('group_names', type=str, nargs="+", help="Group name(s) that the client wants to talk to")
     args = parser.parse_args()
 
     rospy.init_node("moveit_movo_planner",
-                    anonymous=True)
+                    anonymous=True, disable_signals=True)
 
     joint_limits = {}
     with open(args.joint_limits_file) as f:
         joint_limits = yaml.load(f)
-    
-    MoveitPlanner(args.group_names, joint_limits=joint_limits)
-    rospy.spin()
+
+
+    p_pen_tf = subprocess.Popen(['rosrun',
+                                 'writing3d',
+                                 'pens.py',
+                                 args.pen,
+                                 args.ee_frame])
+
+    try:
+        MoveitPlanner(args.group_names, joint_limits=joint_limits)
+        rospy.spin()
+        p_pen_tf.wait()
+    except KeyboardInterrupt:
+        p_pen_tf.kill()
+
+
+if __name__ == "__main__":
+    main()
