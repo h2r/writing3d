@@ -41,7 +41,7 @@ common.DEBUG_LEVEL = 1
 
 class ListenEEPose(threading.Thread):
     def __init__(self, planner, group_name, tf_listener,
-                 base_frame="/odom", ee_frame="/pen_tip"):
+                 base_frame="/odom", ee_frame="/right_ee_link"):
         threading.Thread.__init__(self)
         self._base_frame = base_frame
         self._ee_frame = ee_frame
@@ -86,7 +86,7 @@ class MoveitPlanner:
         JOINT_SPACE = 2
         WAYPOINTS = 3
 
-    def __init__(self, group_names, visualize_plan=True,
+    def __init__(self, group_names, ee_names, visualize_plan=True,
                  robot_name="movo", joint_limits={}):
         """
         joint_limits (dict) map from joint name to tuple (vel, acc) for velocity and acceleration
@@ -104,10 +104,13 @@ class MoveitPlanner:
         self._scene = moveit_commander.PlanningSceneInterface()
         self._joint_groups = {n:moveit_commander.MoveGroupCommander(n)
                               for n in group_names}
+        self._ee_frames = {}
 
         # Set the planner to be used. Reference: https://github.com/ros-planning/moveit/issues/236
-        for n in self._joint_groups:
+        for i, n in enumerate(self._joint_groups):
             self._joint_groups[n].set_planner_id("RRTstarkConfigDefault")
+            self._joint_groups[n].set_end_effector_link(ee_names[i])
+            self._ee_frames[n] = ee_names[i]
 
         # starts an action server
         util.info("Starting moveit_planner_server...")
@@ -165,8 +168,6 @@ class MoveitPlanner:
             util.info("Starting pen tip tf publisher", bold=True)
             pen.publish_transform()
 
-
-        
 
     def print_joint_limits(self):
         # TODO: now only prints right arm
@@ -298,8 +299,9 @@ class MoveitPlanner:
             if self._plan_type == MoveitPlanner.PlanType.WAYPOINTS:
                 base_frame = self._joint_groups[group_name].get_pose_reference_frame()
                 eepl = ListenEEPose(self, group_name, self._tf_listener,
-                                    base_frame, "pen_tip")
+                                    base_frame, ee_frame=self._ee_frames[group_name])
                 eepl.start()
+                print(self._current_plan[group_name])
                 success = self._joint_groups[group_name].execute(self._current_plan[group_name])
             else:
                 success = self._joint_groups[group_name].go(wait=goal.wait)
@@ -368,7 +370,7 @@ def main():
                         type=str, help="Directory to save the collected data", default="../../../cfg/arm_joint_limits.yml")
     parser.add_argument("-p", "--pen", type=str, help="Type of pen to use. See pens.py",
                         default=pens.SmallBrush.name())
-    parser.add_argument("-e", "--ee-frame", type=str, help="EE link which holds the pen (e.g. right_ee_link)",
+    parser.add_argument("-e", "--ee-frames", type=str, nargs="+", help="End effector frames for each move_groupx",
                         default="right_ee_link")
     parser.add_argument('group_names', type=str, nargs="+", help="Group name(s) that the client wants to talk to")
     args = parser.parse_args()
@@ -380,21 +382,8 @@ def main():
     with open(args.joint_limits_file) as f:
         joint_limits = yaml.load(f)
 
-
-    # p_pen_tf = subprocess.Popen(['rosrun',
-    #                              'writing3d',
-    #                              'pens.py',
-    #                              args.pen,
-    #                              args.ee_frame])
-
-    try:
-        MoveitPlanner(args.group_names, joint_limits=joint_limits)
-        rospy.spin()
-        # p_pen_tf.wait()
-    except KeyboardInterrupt:
-        # p_pen_tf.kill()
-        pass
-
+    MoveitPlanner(args.group_names, args.ee_frames, joint_limits=joint_limits)
+    rospy.spin()
 
 if __name__ == "__main__":
     main()

@@ -32,3 +32,10 @@ Right now, just run
 ```
 ./writer.py
 ```
+
+
+### Challenges
+
+Alignment of end effector's tf poses to the drawn stroke image. This does not seem
+to be possible, since the stroke image entirely depends on how the box is defined.
+Decision is to generate the poses from the stroke image instead.

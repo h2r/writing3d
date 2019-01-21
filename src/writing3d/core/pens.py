@@ -143,7 +143,41 @@ class Sharpe(Pen):
         return False
 
 
-ALL_PENS = [Pen, SmallBrush, Sharpe]
+class StraightSharpe(Pen):
+    CONFIG = {
+        "RESOLUTION": 0.0002,
+        "Z_RESOLUTION": 0.003,
+        "Z_MIN": -0.15,  # This depends on the size of the pen
+        "Z_MAX": -0.004,
+        "Z_LIFT": 0.05,
+        "PEN_TIP_TF": [(0.0, 0.0, 0.0),
+                       tuple(quaternion_from_euler(math.radians(0),
+                                                   math.radians(0),
+                                                   math.radians(0)))]                
+    }
+    
+    @classmethod
+    def name(cls):
+        return "straight_sharpe"
+
+    @classmethod
+    def touch_pose(cls):
+        return common.goal_file("touch_joint_pose_brush_small")
+
+    @classmethod
+    def retract_pose(cls):
+        return common.goal_file("retract_joint_pose_brush_small")
+
+    @classmethod
+    def uses_orientation(cls):
+        return False
+
+    @classmethod
+    def needs_dip(cls):
+        return True
+
+
+ALL_PENS = [Pen, SmallBrush, Sharpe, StraightSharpe]
 
 def str_to_pen(string):
     for pen in ALL_PENS:

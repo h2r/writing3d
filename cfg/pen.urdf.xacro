@@ -1,0 +1,106 @@
+<?xml version="1.0"?>
+
+<!-- Append these to movo.urdf.xacro
+	<xacro:if value="$(optenv MOVO_HAS_RIGHT_KG2_GRIPPER false)">
+	  <xacro:pen prefix="right_" parent="right_ee_link" >
+            <origin xyz="-0.00 0 0" rpy="${-M_PI} ${M_PI/2} 0"/>
+          </xacro:pen>
+	</xacro:if>
+
+	<xacro:if value="$(optenv MOVO_HAS_RIGHT_KG3_GRIPPER false)">
+	  <xacro:pen prefix="right_" parent="right_ee_link" >
+            <origin xyz="-0.00 0 0" rpy="${-M_PI} ${M_PI/2} 0"/>
+          </xacro:pen>
+	</xacro:if> -->
+
+<!-- Marker -->
+<robot name="pen" xmlns:xacro="http://ros.org/wiki/xacro">
+  <xacro:include filename="$(find movo_description)/urdf/manipulation/kinova_grippers/kg2_gripper.transmission.xacro" />
+  <xacro:property name="M_PI" value="3.14159"/>
+  <xacro:property name="pen_body_radius" value="0.009"/>
+  <xacro:property name="pen_body_length" value="0.127"/>
+  <xacro:property name="pen_body_mass" value="0.042"/>
+  <xacro:property name="pen_tip_radius" value="0.004"/>
+  <xacro:property name="pen_tip_length" value="0.006"/>
+  <xacro:property name="pen_tip_mass" value="0.001"/>
+
+  <material name="yellow">
+    <color rgba="0.8 0.8 0 1"/>
+  </material>
+   
+  <material name="gray">
+    <color rgba="0.9 0.9 0.9 1"/>
+  </material>
+
+  <macro name="cylinder_inertia" params="m r h">
+    <inertia  ixx="${m*(3*r*r+h*h)/12}" ixy = "0" ixz = "0"
+              iyy="${m*(3*r*r+h*h)/12}" iyz = "0"
+              izz="${m*r*r/2}" /> 
+  </macro>
+  <macro name="box_inertia" params="m x y z">
+    <inertia  ixx="${m*(y*y+z*z)/12}" ixy = "0" ixz = "0"
+              iyy="${m*(x*x+z*z)/12}" iyz = "0"
+              izz="${m*(x*x+z*z)/12}" /> 
+  </macro>
+  
+  <macro name="sphere_inertia" params="m r">
+    <inertia  ixx="${2*m*r*r/5}" ixy = "0" ixz = "0"
+              iyy="${2*m*r*r/5}" iyz = "0"
+              izz="${2*m*r*r/5}" /> 
+  </macro>
+
+  <xacro:macro name="pen" params="prefix parent *origin">
+    <joint name="${prefix}pen_body_joint" type="fixed">
+      <parent link="${parent}" />
+      <child link="${prefix}pen_body_link" />
+      <xacro:insert_block name="origin"/>
+    </joint>
+
+    <link name="${prefix}pen_body_link">
+      <visual>
+	<geometry>
+	  <cylinder radius="${pen_body_radius}" length="${pen_body_length}"/>b
+	</geometry>
+	<material name="gray"/>
+      </visual>
+      <collision>
+	<geometry>
+	  <cylinder radius="${pen_body_radius}" length="${pen_body_length}"/>
+	</geometry>
+      </collision>
+      
+      <inertial>
+        <mass value="${pen_body_mass}" />
+	<origin xyz="0 0 0" rpy="0 ${M_PI/2} ${M_PI/2}" />
+	<cylinder_inertia m="${pen_body_mass}" r="${pen_body_radius}" h="${pen_body_length}"/>
+      </inertial>
+    </link>
+
+    <joint name="${prefix}pen_tip_joint" type="fixed">
+      <parent link="${prefix}pen_body_link" />
+      <child link="${prefix}pen_tip_link" />
+      <origin xyz="0 0 -${pen_body_length/2}" rpy="0 ${-M_PI} ${M_PI/2}" />
+    </joint>
+
+    <link name="${prefix}pen_tip_link">
+      <visual>
+	<geometry>
+	  <cylinder radius="${pen_tip_radius}" length="${pen_tip_length}"/>
+	</geometry>
+	<material name="yellow"/>
+      </visual>
+      <collision>
+	<geometry>
+	  <cylinder radius="${pen_tip_radius}" length="${pen_tip_length}"/>
+	</geometry>
+      </collision>
+      
+      <inertial>
+        <mass value="${pen_tip_mass}" />
+	<origin xyz="0 0 0" rpy="0 ${M_PI/2} ${M_PI/2}" />
+	<cylinder_inertia m="${pen_tip_mass}" r="${pen_tip_radius}" h="${pen_tip_length}"/>
+      </inertial>
+    </link>    
+  </xacro:macro>
+
+</robot>
