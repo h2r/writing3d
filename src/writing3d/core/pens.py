@@ -174,7 +174,7 @@ class StraightSharpe(Pen):
 
     @classmethod
     def needs_dip(cls):
-        return True
+        return False
 
 
 ALL_PENS = [Pen, SmallBrush, Sharpe, StraightSharpe]

@@ -585,7 +585,7 @@ class WritingGui(TkGui):
                 return result
             except Exception as ex:
                 util.warning("Parser error occurred.")
-                return
+                return []
         else:
             return []
 

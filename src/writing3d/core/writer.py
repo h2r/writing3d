@@ -169,6 +169,14 @@ class StrokeWriter:
             # filter waypoints. There are too many
             if self._num_waypoints > 0:
                 self._waypoints = util.downsample(waypoints, self._num_waypoints)
+
+            # Before the beginning of the stroke, lift the pen
+            if len(waypoints) > 0:
+                first_pose = copy.deepcopy(self._waypoints[0])
+            else:
+                first_pose = copy.deepcopy(self._origin_pose)
+            first_pose.position.z += self._z_lift
+            self._waypoints.insert(0, first_pose)
             
             # At the end of the stroke, lift the pen.
             if len(waypoints) > 0:
@@ -344,9 +352,6 @@ class CharacterWriter:
         print("------ Note: Influenced by pen! -------")
         resolution = self._pen.param("RESOLUTION")
         z_resolution = self._pen.param("Z_RESOLUTION")
-        print("al range: %.3f (%.3f ~ %.3f)" % (allmax[4] - allmin[4], allmin[4], allmax[4]))
-        print("az range: %.3f (%.3f ~ %.3f)" % (allmax[5] - allmin[5], allmin[5], allmax[5]))
-
         print("x range: %.3f (%.3f ~ %.3f)" % ((allmax[0] - allmin[0]) * resolution,
                                                allmin[0] * resolution,
                                                allmax[0] * resolution))
@@ -356,13 +361,9 @@ class CharacterWriter:
         print("z range: %.5f (%.5f ~ %.5f)" % ((allmax[2] - allmin[2]) * z_resolution,
                                                allmin[2] * z_resolution,
                                                allmax[2] * z_resolution))
-        if self._pen.uses_orientation() is not None:
-            print("al range: %.3f (%.3f ~ %.3f)" % (allmax[4] - allmin[4],
-                                                    allmin[4],
-                                                    allmax[4]))
-            print("az range: %.3f (%.3f ~ %.3f)" % (allmax[5] - allmin[5],
-                                                    allmin[5],
-                                                    allmax[5]))
+        if self._pen.uses_orientation():
+            print("al range: %.3f (%.3f ~ %.3f)" % (allmax[4] - allmin[4], allmin[4], allmax[4]))
+            print("az range: %.3f (%.3f ~ %.3f)" % (allmax[5] - allmin[5], allmin[5], allmax[5]))
 
 
     def _print_waypoint_stats(self):

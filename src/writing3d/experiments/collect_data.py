@@ -88,7 +88,7 @@ class CollectData():
         # The ink that were just added may or may not be there.
         if pen == pens.SmallBrush:
             min_coverage = 0.001
-        elif pen == pens.Sharpe:
+        elif pen == pens.Sharpe or pen == pens.StraightSharpe:
             min_coverage = 0.0005
             
         points_on_stroke = {(p[0],p[1]) for p in stroke}
@@ -149,7 +149,7 @@ class CollectData():
             util.info2("Writing a character (below). Please specify bounding box in GUI.",
                        bold=True)
             self._gui.set_writing_character(self._characters[0], 0)
-            write_characters([self._characters[0]], retract_after_stroke=False, pen=self._pen)
+            write_characters([self._characters[0]], retract_after_stroke=True, pen=self._pen)
             util.info("Sleeping for 20 seconds. Confirm bounding box within this time.")
             rospy.sleep(20)
         rospy.sleep(2)
