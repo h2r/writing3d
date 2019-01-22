@@ -63,6 +63,10 @@ class Pen:
         return False
 
     @classmethod
+    def uses_z(cls):
+        return True
+
+    @classmethod
     def needs_dip(cls):
         return False
 
@@ -106,7 +110,7 @@ class Sharpe(Pen):
     
     CONFIG = {
         "RESOLUTION": 0.0002,
-        "Z_RESOLUTION": 0.006,
+        "Z_RESOLUTION": 0.002,
         "Z_MIN": -0.012,  # This depends on the size of the pen
         "Z_MAX": -0.004,
         "Z_LIFT": 0.03,
@@ -162,14 +166,18 @@ class StraightSharpe(Pen):
 
     @classmethod
     def touch_pose(cls):
-        return common.goal_file("touch_joint_pose_brush_small")
+        return common.goal_file("touch_joint_pose_straight_sharpe")
 
     @classmethod
     def retract_pose(cls):
-        return common.goal_file("retract_joint_pose_brush_small")
+        return common.goal_file("retract_joint_pose_sharpe")
 
     @classmethod
     def uses_orientation(cls):
+        return False
+
+    @classmethod
+    def uses_z(cls):
         return False
 
     @classmethod

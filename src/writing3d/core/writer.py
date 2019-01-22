@@ -143,25 +143,30 @@ class StrokeWriter:
                 # dwy = current_pose.position.y - self._origin_pose.position.y
                 # dx = -dwy / self._resolution
                 # dy = -dwx / self._resolution
-                
-                if self._z_resolution is not None:
-                    # Force; larger z means downward more, so reverse.
-                    wz = -z * self._z_resolution
-                    # For security concerns:
-                    if wz > self._z_max or wz < self._z_min:
-                        util.warning("Movement in z %.3f is out of range (%.3f ~ %.3f)"
-                                     % (wz, self._z_min, self._z_max))
-                        wz = max(min(wz, self._z_max), self._z_min)
-                    current_pose.position.z += wz
 
-                    # Orientation;
-                    if self._pen.uses_orientation():
-                        euler = list(self._pen.CONFIG["O_INI"])
-                        euler[self._pen.CONFIG["AZ_I"]] += az * self._pen.CONFIG["AZ_FACTOR"]
-                        euler[self._pen.CONFIG["AL_I"]] += al * self._pen.CONFIG["AL_FACTOR"]
-                        current_pose.orientation = geometry_msgs.msg.Quaternion(*quaternion_from_euler(math.radians(euler[0]),
-                                                                                                       math.radians(euler[1]),
-                                                                                                       math.radians(euler[2])))
+                if self._pen.uses_z():
+                    if self._z_resolution is not None:
+                        # Force; larger z means downward more, so reverse.
+                        wz = -z * self._z_resolution
+                        # For security concerns:
+                        if wz > self._z_max or wz < self._z_min:
+                            util.warning("Movement in z %.3f is out of range (%.3f ~ %.3f)"
+                                         % (wz, self._z_min, self._z_max))
+                            wz = max(min(wz, self._z_max), self._z_min)
+                        current_pose.position.z += wz
+
+                        # Orientation;
+                        if self._pen.uses_orientation():
+                            euler = list(self._pen.CONFIG["O_INI"])
+                            euler[self._pen.CONFIG["AZ_I"]] += az * self._pen.CONFIG["AZ_FACTOR"]
+                            euler[self._pen.CONFIG["AL_I"]] += al * self._pen.CONFIG["AL_FACTOR"]
+                            current_pose.orientation = geometry_msgs.msg.Quaternion(*quaternion_from_euler(math.radians(euler[0]),
+                                                                                                           math.radians(euler[1]),
+                                                                                                           math.radians(euler[2])))
+                else:
+                    # current_pose.position.z
+                    pass
+                            
                 waypoints.append(current_pose)
 
             self._waypoints = waypoints

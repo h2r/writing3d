@@ -149,7 +149,7 @@ class CollectData():
             util.info2("Writing a character (below). Please specify bounding box in GUI.",
                        bold=True)
             self._gui.set_writing_character(self._characters[0], 0)
-            write_characters([self._characters[0]], retract_after_stroke=True, pen=self._pen)
+            write_characters([self._characters[0]], retract_after_stroke=False, pen=self._pen)
             util.info("Sleeping for 20 seconds. Confirm bounding box within this time.")
             rospy.sleep(20)
         rospy.sleep(2)
@@ -167,7 +167,7 @@ class CollectData():
             try:
                 writer = CharacterWriter(character, pen=self._pen,
                                          num_waypoints=self._num_waypoints,
-                                         retract_after_stroke=True,
+                                         retract_after_stroke=False,
                                          retract_scale=0.5)
                 writer.print_character(res=40)
                 self._gui.set_writing_character(character, i, char_dir=save_dir)

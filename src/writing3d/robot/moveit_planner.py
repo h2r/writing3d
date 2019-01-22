@@ -34,7 +34,7 @@ from writing3d.msg import PlanMoveEEAction, PlanMoveEEGoal, PlanMoveEEResult, Pl
 
 import writing3d.common as common
 import writing3d.util as util
-import writing3d.core.pens as pens
+# import writing3d.core.pens as pens
 
 
 common.DEBUG_LEVEL = 1
@@ -93,8 +93,6 @@ class MoveitPlanner:
                             limits of that joint. The joint name should be full name, including "left"
                             and "right" etc.
         """
-        
-
         # Initializing npode
         util.info("Initializing moveit commander...")
         moveit_commander.roscpp_initialize(sys.argv)
@@ -107,9 +105,13 @@ class MoveitPlanner:
         self._ee_frames = {}
 
         # Set the planner to be used. Reference: https://github.com/ros-planning/moveit/issues/236
-        for i, n in enumerate(self._joint_groups):
+
+        for i, n in enumerate(group_names):
             self._joint_groups[n].set_planner_id("RRTstarkConfigDefault")
-            self._joint_groups[n].set_end_effector_link(ee_names[i])
+            if ee_names[i] != self._joint_groups[n].get_end_effector_link():
+                util.warning("Setting end effector for group %s from %s to %s"
+                             % (n, self._joint_groups[n].get_end_effector_link(), ee_names[i]))
+                self._joint_groups[n].set_end_effector_link(ee_names[i])
             self._ee_frames[n] = ee_names[i]
 
         # starts an action server
@@ -162,11 +164,11 @@ class MoveitPlanner:
     def __del__(self):
         moveit_commander.roscpp_shutdown()
 
-    def start_pen_tip_tf(self):
-        # Run pen tf publisher
-        if self._pen is not None:
-            util.info("Starting pen tip tf publisher", bold=True)
-            pen.publish_transform()
+    # def start_pen_tip_tf(self):
+    #     # Run pen tf publisher
+    #     if self._pen is not None:
+    #         util.info("Starting pen tip tf publisher", bold=True)
+    #         pen.publish_transform()
 
 
     def print_joint_limits(self):
@@ -299,7 +301,7 @@ class MoveitPlanner:
             if self._plan_type == MoveitPlanner.PlanType.WAYPOINTS:
                 base_frame = self._joint_groups[group_name].get_pose_reference_frame()
                 eepl = ListenEEPose(self, group_name, self._tf_listener,
-                                    base_frame, ee_frame=self._ee_frames[group_name])
+                                    base_frame, ee_frame="right_ee_link")#self._ee_frames[group_name])
                 eepl.start()
                 print(self._current_plan[group_name])
                 success = self._joint_groups[group_name].execute(self._current_plan[group_name])
@@ -368,15 +370,15 @@ def main():
     parser = argparse.ArgumentParser(description='Movo Moveit Planner.')
     parser.add_argument("-j", "--joint_limits_file",
                         type=str, help="Directory to save the collected data", default="../../../cfg/arm_joint_limits.yml")
-    parser.add_argument("-p", "--pen", type=str, help="Type of pen to use. See pens.py",
-                        default=pens.SmallBrush.name())
-    parser.add_argument("-e", "--ee-frames", type=str, nargs="+", help="End effector frames for each move_groupx",
-                        default="right_ee_link")
+    parser.add_argument("-e", "--ee-frames", type=str, nargs="+", help="End effector frames for each move_group")
     parser.add_argument('group_names', type=str, nargs="+", help="Group name(s) that the client wants to talk to")
     args = parser.parse_args()
 
     rospy.init_node("moveit_movo_planner",
                     anonymous=True, disable_signals=True)
+
+    if args.ee_frames is None:
+        raise ValueError("ee-frames is required!")
 
     joint_limits = {}
     with open(args.joint_limits_file) as f:
