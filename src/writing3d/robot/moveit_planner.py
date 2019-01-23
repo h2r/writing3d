@@ -252,7 +252,7 @@ class MoveitPlanner:
         self._joint_groups[group_name].set_joint_value_target(goal.joint_values)
         self._joint_groups[group_name].set_planning_time(1.0)
         self._current_plan[group_name] = self._joint_groups[group_name].plan()
-        self._joint_groups[group_name].set_planning_time(5.0)  # set back to default value
+        self._joint_groups[group_name].set_planning_time(10.0)  # set back to default value
         result = PlanJointSpaceResult()
         if len(self._current_plan[group_name].joint_trajectory.points) > 0:
             util.success("A plan has been made. See it in RViz [check Show Trail and Show Collisions]")
@@ -303,7 +303,6 @@ class MoveitPlanner:
                 eepl = ListenEEPose(self, group_name, self._tf_listener,
                                     base_frame, ee_frame="right_ee_link")#self._ee_frames[group_name])
                 eepl.start()
-                print(self._current_plan[group_name])
                 success = self._joint_groups[group_name].execute(self._current_plan[group_name])
             else:
                 success = self._joint_groups[group_name].go(wait=goal.wait)

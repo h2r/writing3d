@@ -106,7 +106,7 @@ class SmallBrush(Pen):
 
 
 class Sharpe(Pen):
-    # Move torso to 0.1115, head tilt to -0.6
+    # Move torso to 0.065, head tilt to -0.6
     
     CONFIG = {
         "RESOLUTION": 0.0002,
@@ -114,11 +114,12 @@ class Sharpe(Pen):
         "Z_MIN": -0.012,  # This depends on the size of the pen
         "Z_MAX": -0.004,
         "Z_LIFT": 0.03,
-        "O_INI": (0.0, 90.0, 45.0), # when the pen is prependicular to the paper
+        # "O_INI": (0.0, 90.0, 45.0), # when the pen is prependicular to the paper  (right_ee_link)
+        "O_INI": (-180, 0.0, -90.0), # when the pen is prependicular to the paper  (right_pen_tip_link)
         "O_REST": (38.0, 44.6, 45.0), # when holding the pen at resting pose
         "AZ_FACTOR": -1,   # direction the angle should be applied
-        "AL_FACTOR": -1,   # to the robot.
-        "AZ_I": 0,  # index for az
+        "AL_FACTOR": 1,   # to the robot.  -1 if right_ee_link
+        "AZ_I": 2,  # index for az
         "AL_I": 1,  # index for al
         "PEN_TIP_TF": [(0.1, 0.0, 0.0),
                        tuple(quaternion_from_euler(math.radians(0),
@@ -148,6 +149,8 @@ class Sharpe(Pen):
 
 
 class StraightSharpe(Pen):
+    # torso 0.09
+    
     CONFIG = {
         "RESOLUTION": 0.0002,
         "Z_RESOLUTION": 0.003,
