@@ -196,7 +196,7 @@ class StrokeWriter:
                 self._print_waypoint_stats()
             
 
-    def Draw(self, method="separate"):
+    def Draw(self, method="together"):
         """
         method can be "together" or "separate".
         """
@@ -419,7 +419,7 @@ class CharacterWriter:
         self._client.send_and_execute_joint_space_goals_from_files(self._arm, [retract])
         rospy.sleep(1)
 
-    def Write(self, index=-1, method="separate", stroke_complete_cb=None, cb_args=None):
+    def Write(self, index=-1, method="together", stroke_complete_cb=None, cb_args=None):
         if len(self._strokes) != len(self._writers):
             raise Value("Incorrect number of stroke writers. Needs %d but got %d"
                         % (len(self._strokes), len(self._writers)))

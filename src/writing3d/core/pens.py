@@ -106,12 +106,12 @@ class SmallBrush(Pen):
 
 
 class Sharpe(Pen):
-    # Move torso to 0.065, head tilt to -0.6
+    # Move torso to 0.02, head tilt to -0.6
     
     CONFIG = {
         "RESOLUTION": 0.0002,
-        "Z_RESOLUTION": 0.002,
-        "Z_MIN": -0.012,  # This depends on the size of the pen
+        "Z_RESOLUTION": 0.003,
+        "Z_MIN": -0.02,  # This depends on the size of the pen
         "Z_MAX": -0.004,
         "Z_LIFT": 0.03,
         # "O_INI": (0.0, 90.0, 45.0), # when the pen is prependicular to the paper  (right_ee_link)

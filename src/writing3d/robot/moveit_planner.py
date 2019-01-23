@@ -301,7 +301,7 @@ class MoveitPlanner:
             if self._plan_type == MoveitPlanner.PlanType.WAYPOINTS:
                 base_frame = self._joint_groups[group_name].get_pose_reference_frame()
                 eepl = ListenEEPose(self, group_name, self._tf_listener,
-                                    base_frame, ee_frame="right_ee_link")#self._ee_frames[group_name])
+                                    base_frame, ee_frame=self._ee_frames[group_name])
                 eepl.start()
                 success = self._joint_groups[group_name].execute(self._current_plan[group_name])
             else:
