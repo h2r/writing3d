@@ -104,6 +104,47 @@ class SmallBrush(Pen):
         return True
 
 
+class NoDipBrush(Pen):
+    """Has orientation. does not dip."""
+    CONFIG = {
+        "RESOLUTION": 0.0004,
+        "Z_RESOLUTION": 0.003,
+        "Z_MIN": -0.15,  # This depends on the size of the pen
+        "Z_MAX": -0.004,
+        "Z_LIFT": 0.05,
+        "O_INI": (-180, 0.0, -90.0), # when the pen is prependicular to the paper  (right_pen_tip_link)
+        "O_REST": (-180, 0.0, -90.0), # when holding the pen at resting pose
+        "AZ_FACTOR": -1,   # direction the angle should be applied
+        "AL_FACTOR": 1,   # to the robot.  -1 if right_ee_link
+        "AZ_I": 2,  # index for az
+        "AL_I": 1,  # index for al
+        "PEN_TIP_TF": [(0.0, 0.0, 0.0),
+                       tuple(quaternion_from_euler(math.radians(0),
+                                                   math.radians(0),
+                                                   math.radians(0)))]                
+    }
+    
+    @classmethod
+    def name(cls):
+        return "no_dip_brush"
+
+    @classmethod
+    def touch_pose(cls):
+        return common.goal_file("touch_joint_pose_straight_sharpe")
+
+    @classmethod
+    def retract_pose(cls):
+        return common.goal_file("retract_joint_pose_straight_sharpe")
+
+    @classmethod
+    def uses_orientation(cls):
+        return True
+
+    @classmethod
+    def needs_dip(cls):
+        return False
+
+
 
 class Sharpe(Pen):
     # Move torso to 0.02, head tilt to -0.6
@@ -188,7 +229,7 @@ class StraightSharpe(Pen):
         return False
 
 
-ALL_PENS = [Pen, SmallBrush, Sharpe, StraightSharpe]
+ALL_PENS = [Pen, SmallBrush, Sharpe, StraightSharpe, NoDipBrush]
 
 def str_to_pen(string):
     for pen in ALL_PENS:
