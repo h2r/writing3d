@@ -70,6 +70,10 @@ class Pen:
     def needs_dip(cls):
         return False
 
+    @classmethod
+    def map_value(cls, value, val_type=None):
+        return value
+
 class SmallBrush(Pen):
     CONFIG = {
         "RESOLUTION": 0.0004,
@@ -121,7 +125,7 @@ class NoDipBrush(Pen):
         "PEN_TIP_TF": [(0.0, 0.0, 0.0),
                        tuple(quaternion_from_euler(math.radians(0),
                                                    math.radians(0),
-                                                   math.radians(0)))]                
+                                                   math.radians(0)))]
     }
     
     @classmethod
@@ -144,6 +148,15 @@ class NoDipBrush(Pen):
     def needs_dip(cls):
         return False
 
+    @classmethod
+    def map_value(cls, value, val_type=None):
+        if val_type is None:
+            return value
+        if val_type == "al":
+            return util.translate(value, 28.44130898, 71.14911753, 70.0, 90.0)
+        else:
+            return value
+
 
 
 class Sharpe(Pen):
@@ -151,7 +164,7 @@ class Sharpe(Pen):
     
     CONFIG = {
         "RESOLUTION": 0.0002,
-        "Z_RESOLUTION": 0.003,
+        "Z_RESOLUTION": 0.0025,
         "Z_MIN": -0.02,  # This depends on the size of the pen
         "Z_MAX": -0.004,
         "Z_LIFT": 0.03,

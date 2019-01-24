@@ -306,8 +306,8 @@ def main():
 
     # Write simplest characters first
     stroke_lengths = [len(c) for c in characters]
-    sorted_cindx = util.argsort(stroke_lengths)
-    # sorted_cindx = [i for i in range(0, len(stroke_lengths))]
+    # sorted_cindx = util.argsort(stroke_lengths)
+    sorted_cindx = [i for i in range(0, len(stroke_lengths))]
 
     if args.num_chars > 0:
         sorted_cindx = sorted_cindx[:args.num_chars]

@@ -157,9 +157,12 @@ class StrokeWriter:
 
                         # Orientation;
                         if self._pen.uses_orientation():
+                            az = self._pen.map_value(az, val_type="az")
+                            al = self._pen.map_value(al, val_type="al")
+                            
                             euler = list(self._pen.CONFIG["O_INI"])
                             euler[self._pen.CONFIG["AZ_I"]] += az * self._pen.CONFIG["AZ_FACTOR"]
-                            euler[self._pen.CONFIG["AL_I"]] += al * self._pen.CONFIG["AL_FACTOR"]
+                            euler[self._pen.CONFIG["AL_I"]] += (90-al) * self._pen.CONFIG["AL_FACTOR"]
                             current_pose.orientation = geometry_msgs.msg.Quaternion(*quaternion_from_euler(math.radians(euler[0]),
                                                                                                            math.radians(euler[1]),
                                                                                                            math.radians(euler[2])))

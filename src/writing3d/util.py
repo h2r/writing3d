@@ -156,6 +156,18 @@ def downsample(arr1d, final_len):
               if i % (len(arr1d) / final_len) == 0]
     return result
 
+def translate(value, leftMin, leftMax, rightMin, rightMax):
+    # Figure out how 'wide' each range is
+    leftSpan = leftMax - leftMin
+    rightSpan = rightMax - rightMin
+
+    # Convert the left range into a 0-1 range (float)
+    valueScaled = float(value - leftMin) / float(leftSpan)
+
+    # Convert the 0-1 range into a value in the right range.
+    return rightMin + (valueScaled * rightSpan)
+
+
 # Geometry
 def euc_dist(p1, p2):
     return np.sqrt(np.sum((p1-p2)**2))
@@ -241,3 +253,4 @@ def argsort(seq, key=None):
     if key is None:
         key = seq.__getitem__
     return sorted(range(len(seq)), key=key)
+
