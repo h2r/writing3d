@@ -149,7 +149,7 @@ class Sharpe(Pen):
 
 
 class StraightSharpe(Pen):
-    # torso 0.09
+    # torso 0.13
     
     CONFIG = {
         "RESOLUTION": 0.0002,

@@ -306,8 +306,8 @@ def main():
 
     # Write simplest characters first
     stroke_lengths = [len(c) for c in characters]
-    # sorted_cindx = util.argsort(stroke_lengths)
-    sorted_cindx = [i for i in range(0, len(stroke_lengths))]
+    sorted_cindx = util.argsort(stroke_lengths)
+    # sorted_cindx = [i for i in range(0, len(stroke_lengths))]
 
     if args.num_chars > 0:
         sorted_cindx = sorted_cindx[:args.num_chars]
@@ -315,6 +315,12 @@ def main():
 
     gui_config_file_arg = ['-g', args.gui_config_file] \
                           if args.gui_config_file is not None else []
+
+    # confirm pen. very important
+    resp = raw_input("Using pen \"%s\". Confirm? [Y/n] " % args.pen)
+    if not resp.upper().startswith("Y"):
+        util.info2("Please make sure you have the pen you want.", bold=True)
+        return
     
     p_ext_gui = subprocess.Popen(['rosrun',
                                   'writing3d',
