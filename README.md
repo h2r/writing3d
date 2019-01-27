@@ -27,12 +27,10 @@ If you want to move the arm manually (without planning),
 If you supply the option `-c`, the indices will be for cartesian coordinates (i.e. x y z). Right now for some reason the
 cartesian goal doesn't work after `moveit_client` is used to move the arm.
 
-### Write a character
-Right now, just run
+### Collect data
 ```
-./writer.py
+./collect_data.py ../../../data/downsampled_strokes.npy ../../../data/characters -p sharpe -g ../../../cfg/gui_config.yml 
 ```
-
 
 ### Challenges
 
