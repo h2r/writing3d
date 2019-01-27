@@ -17,7 +17,7 @@
 #
 # Manual steps before starting:
 # - Start a planner
-#   ./moveit_planner.py right_arm left_arme right_pen_tip_link left_ee_link
+#   ./moveit_planner.py right_arm left_arm right_pen_tip_link left_ee_link
 # - Adjust kinect pan to 0.0 and tilt to -0.6 by
 #   ./movo_pose_publisher.py head -p 0.0 0.2 0.1 -t -0.6 0.2 0.1
 # - Move the left arm away by

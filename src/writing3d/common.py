@@ -9,7 +9,7 @@ class ActionType:
 DEBUG_LEVEL = 0
 
 _rospack = rospkg.RosPack()
-CFG_PATH = _rospack.get_path('writing3d')
+PKG_PATH = _rospack.get_path('writing3d')
 
 def goal_file(name):
-    return os.path.join(CFG_PATH, "cfg", "%s.yml" % name)
+    return os.path.join(PKG_PATH, "cfg", "%s.yml" % name)

@@ -383,8 +383,19 @@ class WritingGui(TkGui):
                 self.save_config(self._config_file)
                 util.success("GUI config saved to %s" % self._config_file)
                 return
-        self._config_file = "./gui_config.yml"   # temporary location
-        util.success("GUI config saved to %s" % self._config_file)
+        # self._config_file = "./gui_config.yml"   # temporary location
+        # util.success("GUI config saved to %s" % self._config_file)
+
+    def _save_cropped_image_cb(self, event):
+        """Save cropped image to a file"""
+        if self._top_left is not None and self._top_right is not None\
+           and self._bottom_left is not None and self._bottom_right is not None:
+            
+            cropped_img = self.extract_character_image(img_src=self._images[WritingGui.KINECT_IMAGE_NAME][0],
+                                                        show_result=False)
+            save_path = os.path.join(common.PKG_PATH, "data", "cropped_image.bmp")
+            self.save_stroke_image(cropped_img, save_path)
+            util.success("Saved cropped image to %s" % save_path)
 
     def set_kinect(self, kinect):
         """If this function is not called, update_kinect_image_periodically() will
@@ -681,6 +692,9 @@ class WritingGui(TkGui):
         
         self.register_key_press_event("save_config", "p",
                                       self._save_config_cb)
+
+        self.register_key_press_event("save_cropped_image", "c",
+                                      self._save_cropped_image_cb)        
         
 
 def main():
