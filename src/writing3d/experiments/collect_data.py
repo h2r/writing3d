@@ -299,8 +299,14 @@ def main():
                         default=None)
     parser.add_argument("--num-waypoints", help="Number of waypoints per stroke. Negative if NO downsample."\
                         "default is -1", default=-1)
+    parser.add_argument("--cmd", help="Treat the file in `chars_path` as a command file to write one character",
+                        action="store_true")
     args, _ = parser.parse_known_args()
     characters = np.load(args.chars_path)
+
+    if args.cmd:
+        characters = np.array([characters])
+    
     if args.num_chars >= len(characters):
         raise ValueError("Index out of bound. Valid range: 0 ~ %d" % (len(characters)))
 
@@ -316,6 +322,10 @@ def main():
     gui_config_file_arg = ['-g', args.gui_config_file] \
                           if args.gui_config_file is not None else []
 
+    cmd_arg = ['--cmd'] \
+              if args.cmd else []
+    
+
     # confirm pen. very important
     resp = raw_input("Using pen \"%s\". Confirm? [Y/n] " % args.pen)
     if not resp.upper().startswith("Y"):
@@ -327,7 +337,7 @@ def main():
                                   'start_gui.py',
                                   args.save_dirpath,
                                   args.chars_path,
-                                  '-p', args.pen] + gui_config_file_arg)
+                                  '-p', args.pen] + gui_config_file_arg + cmd_arg)
     try:
         begin_procedure(characters, sorted_cindx, pens.str_to_pen(args.pen),
                         args.dim, args.save_dirpath,
