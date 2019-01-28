@@ -322,6 +322,8 @@ class WritingGui(TkGui):
                 z = p[2] * 2
                 img[int(round(y-z)):int(round(y+z)),
                     int(round(x-z)):int(round(x+z))] = 0
+                img[int(round(y-1)):int(round(y+1)),
+                    int(round(x-1)):int(round(x+1))] = 100
         Image.fromarray(img).save(path)
 
     def save_stroke_image(self, img, path):

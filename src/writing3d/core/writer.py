@@ -128,9 +128,20 @@ class StrokeWriter:
                 self._origin_pose = copy.deepcopy(state.pose)
 
             waypoints = []  # list of poses
+
+            # Filter stroke points
+            stroke_points = self._stroke
             
+            # filter stroke points. There are too many
+            if self._num_waypoints > 0:
+                stroke_points = util.downsample(stroke_points, every=self._num_waypoints)
+                print("Downsampling stroke points from %d to %d waypoints..." % (len(self._stroke), len(stroke_points)))
+
+            if len(stroke_points) > 0:
+                print("Starting x,y location: %s" % (stroke_points[0][:2]))
+
             # x, y, z are in meters; al and az are degrees
-            for x, y, z, z2, al, az in self._stroke:
+            for x, y, z, z2, al, az in stroke_points:
                 # Map from image space to world space
                 current_pose = copy.deepcopy(self._origin_pose)
                 wx = -y * self._resolution
@@ -157,7 +168,12 @@ class StrokeWriter:
 
                         # Orientation;
                         if self._pen.uses_orientation():
+                            if self._pen.fix_az():
+                                az = stroke_points[0][-1]  # the azimuth of the first point
+                            if self._pen.fix_al():
+                                al = stroke_points[0][-2]  # the altitude of the first point
                             al = self._pen.map_value(al, val_type="al")
+                            print(al)
                             
                             euler = list(self._pen.CONFIG["O_INI"])
                             euler[self._pen.CONFIG["AZ_I"]] += az * self._pen.CONFIG["AZ_FACTOR"]
@@ -172,10 +188,6 @@ class StrokeWriter:
                 waypoints.append(current_pose)
 
             self._waypoints = waypoints
-
-            # filter waypoints. There are too many
-            if self._num_waypoints > 0:
-                self._waypoints = util.downsample(waypoints, self._num_waypoints)
 
             # Before the beginning of the stroke, lift the pen
             if len(waypoints) > 0:

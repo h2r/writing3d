@@ -288,6 +288,8 @@ def main():
     parser.add_argument("save_dirpath", type=str, help="Directory to save the collected data")
     parser.add_argument("-n", "--num-chars", type=int, help="Number of characters to write."\
                         "If negative, all characters will be written.", default=-1)
+    parser.add_argument("-i", "--index", type=int, help="Write character at specific index of the file."\
+                        "If negative, all characters will be written.", default=-1)    
     parser.add_argument("-p", "--pen", type=str, help="Type of pen to use. See pens.py",
                         default=pens.SmallBrush.name())
     parser.add_argument("-d", "--dim", type=int, help="Dimension of the character image. Default 500.",
@@ -297,18 +299,24 @@ def main():
     parser.add_argument("-g", "--gui-config-file", type=str, help="Path to a file that stores gui config."
                         "If the file does not exist, when gui saves config, it will use this path.",
                         default=None)
-    parser.add_argument("--num-waypoints", help="Number of waypoints per stroke. Negative if NO downsample."\
+    parser.add_argument("--num-waypoints", type=int, help="Number of waypoints per stroke. Negative if NO downsample."\
                         "default is -1", default=-1)
-    parser.add_argument("--cmd", help="Treat the file in `chars_path` as a command file to write one character",
+    parser.add_argument("--only-one", help="The file in `chars_path` has only one character",
                         action="store_true")
     args, _ = parser.parse_known_args()
     characters = np.load(args.chars_path)
 
-    if args.cmd:
+    if args.only_one:
         characters = np.array([characters])
     
     if args.num_chars >= len(characters):
         raise ValueError("Index out of bound. Valid range: 0 ~ %d" % (len(characters)))
+
+    if args.index >= len(characters):
+        raise ValueError("Character index %d out of bound. Total %d characters."
+                         % (args.index, len(characters)))
+    elif args.index > 0:
+        characters = np.array([characters[args.index]])
 
     # Write simplest characters first
     stroke_lengths = [len(c) for c in characters]
@@ -322,8 +330,8 @@ def main():
     gui_config_file_arg = ['-g', args.gui_config_file] \
                           if args.gui_config_file is not None else []
 
-    cmd_arg = ['--cmd'] \
-              if args.cmd else []
+    only_one_arg = ['--only-one'] \
+              if args.only_one else []
     
 
     # confirm pen. very important
@@ -337,7 +345,7 @@ def main():
                                   'start_gui.py',
                                   args.save_dirpath,
                                   args.chars_path,
-                                  '-p', args.pen] + gui_config_file_arg + cmd_arg)
+                                  '-p', args.pen] + gui_config_file_arg + only_one_arg)
     try:
         begin_procedure(characters, sorted_cindx, pens.str_to_pen(args.pen),
                         args.dim, args.save_dirpath,

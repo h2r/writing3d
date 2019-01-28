@@ -75,11 +75,11 @@ def main():
                         default=None)
     parser.add_argument("-p", "--pen", type=str, help="Type of pen to use. See pens.py",
                         default=pens.SmallBrush.name())
-    parser.add_argument("--cmd", help="Treat the file in `chars_path` as a command file to write one character",
+    parser.add_argument("--only-one", help="The file in `chars_path` has only one character",
                         action="store_true")    
     args = parser.parse_args()
     characters = np.load(args.chars_data_path)
-    if args.cmd:
+    if args.only_one:
         characters = np.array([characters])
 
     rospy.init_node("writing_gui", anonymous=True)

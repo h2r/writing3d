@@ -147,27 +147,6 @@ def block_print():
 def enable_print():
     sys.stdout = sys.__stdout__
 
-    
-# Data
-def downsample(arr1d, final_len):
-    if len(arr1d) < final_len:
-        return arr1d
-    result = [arr1d[i] for i in range(len(arr1d))
-              if i % (len(arr1d) / final_len) == 0]
-    return result
-
-def translate(value, leftMin, leftMax, rightMin, rightMax):
-    # Figure out how 'wide' each range is
-    leftSpan = leftMax - leftMin
-    rightSpan = rightMax - rightMin
-
-    # Convert the left range into a 0-1 range (float)
-    valueScaled = float(value - leftMin) / float(leftSpan)
-
-    # Convert the 0-1 range into a value in the right range.
-    return rightMin + (valueScaled * rightSpan)
-
-
 # Geometry
 def euc_dist(p1, p2):
     return np.sqrt(np.sum((p1-p2)**2))
@@ -206,6 +185,33 @@ def intersect(l1, l2):
     t, k = np.linalg.solve(A, b)
     p_int = point_along(p1, v1, t=t)
     return p_int    
+
+    
+# Data
+def downsample(arr1d, every=5):#final_len):
+    result = []
+    if len(arr1d) < every:
+        return arr1d
+
+    result.append(arr1d[0])
+    for i in range(1, len(arr1d)-1):
+        if i % every == 0:
+            result.append(arr1d[i])
+    result.append(arr1d[-1])    
+
+    return result
+
+def translate(value, leftMin, leftMax, rightMin, rightMax):
+    # Figure out how 'wide' each range is
+    leftSpan = leftMax - leftMin
+    rightSpan = rightMax - rightMin
+
+    # Convert the left range into a 0-1 range (float)
+    valueScaled = float(value - leftMin) / float(leftSpan)
+
+    # Convert the 0-1 range into a value in the right range.
+    return rightMin + (valueScaled * rightSpan)
+
 
 # Colors
 def n_rand_colors(n, ctype=1):

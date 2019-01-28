@@ -74,6 +74,14 @@ class Pen:
     def map_value(cls, value, val_type=None):
         return value
 
+    @classmethod
+    def fix_az(cls):
+        return False
+
+    @classmethod
+    def fix_al(cls):
+        return False    
+
 class SmallBrush(Pen):
     CONFIG = {
         "RESOLUTION": 0.0002,
@@ -210,6 +218,27 @@ class Sharpe(Pen):
     def needs_dip(cls):
         return False
 
+    @classmethod
+    def fix_az(cls):
+        return True
+
+    @classmethod
+    def fix_al(cls):
+        return True
+    
+
+    # @classmethod
+    # def map_value(cls, value, val_type=None):
+    #     if val_type is None:
+    #         return value
+    #     if val_type == "al":
+    #         if value < 0 or value > 90:
+    #             util.error("SOMETHING WRONG!")
+    #             return value
+    #         return util.translate(value, 0, 90, 30, 60)
+    #     else:
+    #         return value
+    
 
 class StraightSharpe(Pen):
     # torso 0.13
