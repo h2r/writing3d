@@ -289,7 +289,9 @@ def main():
     parser.add_argument("-n", "--num-chars", type=int, help="Number of characters to write."\
                         "If negative, all characters will be written.", default=-1)
     parser.add_argument("-i", "--index", type=int, help="Write character at specific index of the file."\
-                        "If negative, all characters will be written.", default=-1)    
+                        "If negative, all characters will be written.", default=-1)
+    parser.add_argument("-I", "--indices", type=int, nargs="+", help="Write character at specific index of the file."\
+                        "If negative, all characters will be written.")
     parser.add_argument("-p", "--pen", type=str, help="Type of pen to use. See pens.py",
                         default=pens.SmallBrush.name())
     parser.add_argument("-d", "--dim", type=int, help="Dimension of the character image. Default 500.",
@@ -312,11 +314,19 @@ def main():
     if args.num_chars >= len(characters):
         raise ValueError("Index out of bound. Valid range: 0 ~ %d" % (len(characters)))
 
-    if args.index >= len(characters):
-        raise ValueError("Character index %d out of bound. Total %d characters."
-                         % (args.index, len(characters)))
-    elif args.index > 0:
-        characters = np.array([characters[args.index]])
+    if args.indices is not None and len(args.indices) > 0:
+        used_characters = []
+        for i in args.indices:
+            used_characters.append(characters[i])
+        characters = used_characters
+    else:
+        if args.index >= len(characters):
+            raise ValueError("Character index %d out of bound. Total %d characters."
+                             % (args.index, len(characters)))
+
+        elif args.index > 0:
+            characters = np.array([characters[args.index]])
+
 
     # Write simplest characters first
     stroke_lengths = [len(c) for c in characters]
@@ -340,20 +350,21 @@ def main():
         util.info2("Please make sure you have the pen you want.", bold=True)
         return
     
-    p_ext_gui = subprocess.Popen(['rosrun',
-                                  'writing3d',
-                                  'start_gui.py',
-                                  args.save_dirpath,
-                                  args.chars_path,
-                                  '-p', args.pen] + gui_config_file_arg + only_one_arg)
+    # p_ext_gui = subprocess.Popen(['rosrun',
+    #                               'writing3d',
+    #                               'start_gui.py',
+    #                               args.save_dirpath,
+    #                               args.chars_path,
+    #                               '-p', args.pen] + gui_config_file_arg + only_one_arg)
     try:
         begin_procedure(characters, sorted_cindx, pens.str_to_pen(args.pen),
                         args.dim, args.save_dirpath,
                         test_first=args.test_first, gui_config_file=args.gui_config_file,
                         num_waypoints=args.num_waypoints)
-        p_ext_gui.wait()
+        # p_ext_gui.wait()
     except KeyboardInterrupt:
-        p_ext_gui.kill()
+        # p_ext_gui.kill()
+        pass
 
 if __name__ == "__main__":
     main()

@@ -119,10 +119,10 @@ class SmallBrush(Pen):
 class NoDipBrush(Pen):
     """Has orientation. does not dip."""
     CONFIG = {
-        "RESOLUTION": 0.0002,
-        "Z_RESOLUTION": 0.003,
+        "RESOLUTION": 0.000235,
+        "Z_RESOLUTION": 0.0015,
         "Z_MIN": -0.08,  # This depends on the size of the pen
-        "Z_MAX": -0.004,
+        "Z_MAX": -0.0023,
         "Z_LIFT": 0.05,
         "O_INI": (-180, 0.0, -90.0), # when the pen is prependicular to the paper  (right_pen_tip_link)
         "O_REST": (-180, 0.0, -90.0), # when holding the pen at resting pose
@@ -150,7 +150,7 @@ class NoDipBrush(Pen):
 
     @classmethod
     def uses_orientation(cls):
-        return False
+        return True
 
     @classmethod
     def needs_dip(cls):
@@ -158,7 +158,15 @@ class NoDipBrush(Pen):
 
     @classmethod
     def uses_z(cls):
-        return False
+        return True
+
+    @classmethod
+    def fix_az(cls):
+        return True
+
+    @classmethod
+    def fix_al(cls):
+        return True
 
     @classmethod
     def map_value(cls, value, val_type=None):
@@ -166,9 +174,12 @@ class NoDipBrush(Pen):
             return value
         if val_type == "al":
             if value < 20 or value > 90:
-                util.error("SOMETHING WRONG!")
-                return value
-            return util.translate(value, 28.44130898, 71.14911753, 70.0, 90.0)
+                util.error("SOMETHING WRONG! Compromising.")
+                if value < 20:
+                    value = 20
+                else:
+                    value = 90
+            return util.translate(value, 28.44130898, 71.14911753, 50.0, 90.0)
             # return util.translate(value, 0, 90, 70.0, 90.0)
             # return 70
         else:
