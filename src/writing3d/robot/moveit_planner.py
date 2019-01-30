@@ -252,7 +252,7 @@ class MoveitPlanner:
         self._joint_groups[group_name].set_joint_value_target(goal.joint_values)
         self._joint_groups[group_name].set_planning_time(1.0)
         self._current_plan[group_name] = self._joint_groups[group_name].plan()
-        self._joint_groups[group_name].set_planning_time(15.0)  # set back to default value
+        self._joint_groups[group_name].set_planning_time(60.0)  # set back to default value
         result = PlanJointSpaceResult()
         if len(self._current_plan[group_name].joint_trajectory.points) > 0:
             util.success("A plan has been made. See it in RViz [check Show Trail and Show Collisions]")

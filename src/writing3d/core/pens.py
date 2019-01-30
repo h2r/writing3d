@@ -119,10 +119,13 @@ class SmallBrush(Pen):
 class NoDipBrush(Pen):
     """Has orientation. does not dip."""
     CONFIG = {
-        "RESOLUTION": 0.000235,
-        "Z_RESOLUTION": 0.0015,
-        "Z_MIN": -0.08,  # This depends on the size of the pen
-        "Z_MAX": -0.0023,
+        "RESOLUTION": 0.000325,
+        "Z_RESOLUTION": 0.0025,
+        "Z_MIN": -0.005,
+        "Z_MAX": -0.000,
+        # "Z_MIN": -0.07,  # This depends on the size of the pen
+        # "Z_MAX": -0.000,
+        # "Z_CONST": 0.0
         "Z_LIFT": 0.05,
         "O_INI": (-180, 0.0, -90.0), # when the pen is prependicular to the paper  (right_pen_tip_link)
         "O_REST": (-180, 0.0, -90.0), # when holding the pen at resting pose

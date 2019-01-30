@@ -158,12 +158,13 @@ class StrokeWriter:
                 if self._pen.uses_z():
                     if self._z_resolution is not None:
                         # Force; larger z means downward more, so reverse.
-                        wz = -z * self._z_resolution
+                        #wz = -z * self._z_resolution
+                        wz = util.translate(-z, -11.06, -0.175, self._pen.CONFIG['Z_MIN'], self._pen.CONFIG['Z_MAX'])
                         # For security concerns:
-                        if wz > self._z_max or wz < self._z_min:
-                            util.warning("Movement in z %.3f is out of range (%.3f ~ %.3f)"
-                                         % (wz, self._z_min, self._z_max))
-                            wz = max(min(wz, self._z_max), self._z_min)
+                        # if wz > self._z_max or wz < self._z_min:
+                        #     util.warning("Movement in z %.4f is out of range (%.4f ~ %.4f)"
+                        #                  % (wz, self._z_min, self._z_max))
+                        #     wz = max(min(wz, self._z_max), self._z_min)
                         current_pose.position.z += wz
 
                         # Orientation;
